@@ -64,7 +64,7 @@
             x-transition:leave-start="opacity-100 scale-100"
             x-transition:leave-end="opacity-0 scale-95"
             @click.outside="open = false; search = '';"
-            class="fixed z-[9999] bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden"
+            class="fixed z-[99999] bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden"
             :style="`top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
             x-cloak
         >
