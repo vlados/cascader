@@ -24,9 +24,34 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         tempSelectedValue: null,
         tempSelectedText: null,
 
+        // Dropdown position for teleported element
+        dropdownPosition: { top: 0, left: 0, width: 0 },
+
         init() {
             this.checkMobile();
-            window.addEventListener('resize', () => this.checkMobile());
+            window.addEventListener('resize', () => {
+                this.checkMobile();
+                if (this.open && !this.isMobile) {
+                    this.updateDropdownPosition();
+                }
+            });
+            window.addEventListener('scroll', () => {
+                if (this.open && !this.isMobile) {
+                    this.updateDropdownPosition();
+                }
+            }, true);
+        },
+
+        updateDropdownPosition() {
+            const root = this.$refs.cascaderRoot;
+            if (!root) return;
+
+            const rect = root.getBoundingClientRect();
+            this.dropdownPosition = {
+                top: rect.bottom + 4, // 4px gap (mt-1)
+                left: rect.left,
+                width: rect.width
+            };
         },
 
         checkMobile() {
@@ -101,6 +126,12 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
 
         openCascader() {
             this.open = true;
+
+            if (!this.isMobile) {
+                // Update dropdown position for teleported element
+                this.$nextTick(() => this.updateDropdownPosition());
+            }
+
             if (this.isMobile) {
                 // Initialize mobile state
                 this.mobileLevel = 0;

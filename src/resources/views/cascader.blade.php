@@ -20,6 +20,7 @@
         labelField: {{ Js::from($labelField) }}
     })"
     x-init="init()"
+    x-ref="cascaderRoot"
     @keydown.escape.window="closeCascader()"
     x-effect="if (!selectedValue) selectedText = null"
     {{ $attributes->merge(['class' => 'relative']) }}
@@ -53,19 +54,21 @@
         @endif
     </div>
 
-    {{-- Desktop Dropdown --}}
-    <div
-        x-show="open && !isMobile"
-        x-transition:enter="transition ease-out duration-100"
-        x-transition:enter-start="opacity-0 scale-95"
-        x-transition:enter-end="opacity-100 scale-100"
-        x-transition:leave="transition ease-in duration-75"
-        x-transition:leave-start="opacity-100 scale-100"
-        x-transition:leave-end="opacity-0 scale-95"
-        @click.outside="open = false; search = '';"
-        class="absolute z-[99999] mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden"
-        x-cloak
-    >
+    {{-- Desktop Dropdown (teleported to body to escape overflow clipping) --}}
+    <template x-teleport="body">
+        <div
+            x-show="open && !isMobile"
+            x-transition:enter="transition ease-out duration-100"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-75"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            @click.outside="open = false; search = '';"
+            :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; width: ${dropdownPosition.width}px;`"
+            class="z-[99999] bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden"
+            x-cloak
+        >
         {{-- Search Input --}}
         <div class="p-2 border-b border-zinc-100">
             <div class="relative">
@@ -196,6 +199,7 @@
             </div>
         </div>
     </div>
+    </template>
 
     {{-- Mobile Bottom Sheet --}}
     <template x-teleport="body">
