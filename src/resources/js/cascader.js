@@ -128,11 +128,14 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             this.open = true;
 
             if (!this.isMobile) {
-                // Update dropdown position for teleported element
-                this.$nextTick(() => this.updateDropdownPosition());
-            }
-
-            if (this.isMobile) {
+                // Update dropdown position and show dialog
+                this.$nextTick(() => {
+                    this.updateDropdownPosition();
+                    this.$refs.desktopDialog?.showModal();
+                    // Focus search input
+                    this.$refs.searchInput?.focus();
+                });
+            } else {
                 // Initialize mobile state
                 this.mobileLevel = 0;
                 this.mobileSelectedParent = null;
@@ -156,8 +159,10 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
                     }
                 }
 
-                // Prevent body scroll
-                document.body.style.overflow = 'hidden';
+                // Show mobile dialog
+                this.$nextTick(() => {
+                    this.$refs.mobileDialog?.showModal();
+                });
             }
         },
 
@@ -167,8 +172,11 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             this.hoveredParent = null;
             this.hoveredParentValue = null;
 
+            // Close dialogs
+            this.$refs.desktopDialog?.close();
+            this.$refs.mobileDialog?.close();
+
             if (this.isMobile) {
-                document.body.style.overflow = '';
                 this.mobileLevel = 0;
                 this.mobileSelectedParent = null;
                 this.tempSelectedValue = null;
@@ -233,6 +241,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
                 this.hoveredParentValue = null;
                 this.search = '';
                 this.open = false;
+                this.$refs.desktopDialog?.close();
             }
         },
 
@@ -248,6 +257,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             this.hoveredParentValue = null;
             this.search = '';
             this.open = false;
+            this.$refs.desktopDialog?.close();
         },
 
         selectSearchResult(result) {
@@ -262,6 +272,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             this.hoveredParentValue = null;
             this.search = '';
             this.open = false;
+            this.$refs.desktopDialog?.close();
         },
 
         findParentByChildValue(value) {
