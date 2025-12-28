@@ -1,5 +1,5 @@
 @props([
-    'options' => [],
+    'resolvedOptions' => [],
     'wireModel' => null,
     'placeholder' => 'Select...',
     'selectedText' => null,
@@ -13,7 +13,7 @@
 
 <div
     x-data="cascader({
-        options: {{ Js::from($options) }},
+        options: {{ Js::from($resolvedOptions) }},
         selectedValue: @if($wireModel) $wire.entangle('{{ $wireModel }}') @else null @endif,
         initialText: {{ Js::from($selectedText) }},
         valueField: {{ Js::from($valueField) }},
@@ -110,17 +110,12 @@
                         'text-zinc-700': selectedValue !== getValue(result)
                     }"
                 >
-                    <template x-if="result.icon">
+                    <template x-if="result.iconHtml">
                         <span
                             class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
                             :style="'background-color: ' + (result.color || '#6B7280') + '20'"
-                        >
-                            <i
-                                class="fa-solid text-xs"
-                                :class="'fa-' + result.icon"
-                                :style="'color: ' + (result.color || '#6B7280')"
-                            ></i>
-                        </span>
+                            x-html="result.iconHtml"
+                        ></span>
                     </template>
                     <span class="truncate" x-text="result._parentLabel ? result._parentLabel + ' / ' + getLabel(result) : getLabel(result)"></span>
                     <svg x-show="selectedValue === getValue(result)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -148,17 +143,12 @@
                         }"
                     >
                         <span class="flex items-center gap-2">
-                            <template x-if="parent.icon">
+                            <template x-if="parent.iconHtml">
                                 <span
                                     class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
                                     :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
-                                >
-                                    <i
-                                        class="fa-solid text-xs"
-                                        :class="'fa-' + parent.icon"
-                                        :style="'color: ' + (parent.color || '#6B7280')"
-                                    ></i>
-                                </span>
+                                    x-html="parent.iconHtml"
+                                ></span>
                             </template>
                             <span x-text="getLabel(parent)"></span>
                         </span>
@@ -188,17 +178,12 @@
                                 'text-zinc-700': selectedValue !== getValue(child)
                             }"
                         >
-                            <template x-if="child.icon">
+                            <template x-if="child.iconHtml">
                                 <span
                                     class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
                                     :style="'background-color: ' + (child.color || '#6B7280') + '20'"
-                                >
-                                    <i
-                                        class="fa-solid text-xs"
-                                        :class="'fa-' + child.icon"
-                                        :style="'color: ' + (child.color || '#6B7280')"
-                                    ></i>
-                                </span>
+                                    x-html="child.iconHtml"
+                                ></span>
                             </template>
                             <span x-text="getLabel(child)"></span>
                             <svg x-show="selectedValue === getValue(child)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -306,17 +291,12 @@
                                 }"
                             >
                                 <span class="flex items-center gap-3">
-                                    <template x-if="parent.icon">
+                                    <template x-if="parent.iconHtml">
                                         <span
                                             class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
                                             :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
-                                        >
-                                            <i
-                                                class="fa-solid text-sm"
-                                                :class="'fa-' + parent.icon"
-                                                :style="'color: ' + (parent.color || '#6B7280')"
-                                            ></i>
-                                        </span>
+                                            x-html="parent.iconHtml"
+                                        ></span>
                                     </template>
                                     <span class="text-base" x-text="getLabel(parent)"></span>
                                 </span>
@@ -347,17 +327,12 @@
                                 }"
                             >
                                 <span class="flex items-center gap-3">
-                                    <template x-if="child.icon">
+                                    <template x-if="child.iconHtml">
                                         <span
                                             class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
                                             :style="'background-color: ' + (child.color || '#6B7280') + '20'"
-                                        >
-                                            <i
-                                                class="fa-solid text-sm"
-                                                :class="'fa-' + child.icon"
-                                                :style="'color: ' + (child.color || '#6B7280')"
-                                            ></i>
-                                        </span>
+                                            x-html="child.iconHtml"
+                                        ></span>
                                     </template>
                                     <span class="text-base" x-text="getLabel(child)"></span>
                                 </span>

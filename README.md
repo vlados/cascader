@@ -116,6 +116,56 @@ On mobile devices (< 640px), the cascader automatically displays as a bottom she
 />
 ```
 
+### Icon Resolver
+
+The cascader supports flexible icon rendering through a resolver system. By default, it uses FontAwesome, but you can configure it to use Heroicons, Blade Icons, or create a custom resolver.
+
+#### Using FontAwesome (default)
+
+```php
+// In AppServiceProvider::boot()
+use Vlados\Cascader\IconResolver;
+
+IconResolver::useFontAwesome(); // solid style (default)
+IconResolver::useFontAwesome('regular'); // regular style
+```
+
+#### Using Heroicons
+
+```php
+IconResolver::useHeroicons(); // solid style
+IconResolver::useHeroicons('outline'); // outline style
+```
+
+#### Using Blade Icons
+
+For any icon set that follows the Blade Icons convention (e.g., `x-fas-laptop`, `x-heroicon-o-home`):
+
+```php
+IconResolver::useBladeIcons();
+```
+
+With this resolver, pass full icon names in your options:
+```php
+['icon' => 'fas-laptop'] // renders <x-fas-laptop />
+['icon' => 'heroicon-o-home'] // renders <x-heroicon-o-home />
+```
+
+#### Custom Resolver
+
+Create your own resolver for complete control:
+
+```php
+IconResolver::using(function (string $icon, ?string $color = null, string $size = 'sm') {
+    // Return HTML string for the icon
+    return view('components.my-icon', [
+        'name' => $icon,
+        'color' => $color,
+        'size' => $size,
+    ])->render();
+});
+```
+
 ### Publishing Assets
 
 To publish the views for customization:
@@ -138,7 +188,7 @@ php artisan vendor:publish --tag=cascader-scripts
 - Hover to preview children
 - Click to select
 - **Clearable** selection with optional clear button
-- Icons and colors support (FontAwesome)
+- **Flexible icon resolver** (FontAwesome, Heroicons, Blade Icons, or custom)
 - Selected value shows "Parent / Child" format
 - Auto-closes on selection or outside click
 - Keyboard support (Escape to close)
