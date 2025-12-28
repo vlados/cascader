@@ -77,6 +77,7 @@
                     x-model="search"
                     x-ref="searchInput"
                     @keydown.escape.stop="search = ''"
+                    @keydown.enter.prevent
                     placeholder="{{ $searchPlaceholder }}"
                     class="w-full pl-8 pr-8 py-1.5 text-sm border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400"
                 />
