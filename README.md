@@ -120,7 +120,7 @@ On mobile devices (< 640px), the cascader automatically displays as a bottom she
 
 The cascader supports flexible icon rendering through a resolver system. By default, it uses FontAwesome, but you can configure it to use Heroicons, Blade Icons, or create a custom resolver.
 
-#### Using FontAwesome (default)
+#### Using FontAwesome with inline `<i>` tags (default)
 
 ```php
 // In AppServiceProvider::boot()
@@ -130,6 +130,19 @@ IconResolver::useFontAwesome(); // solid style (default)
 IconResolver::useFontAwesome('regular'); // regular style
 ```
 
+Options use simple icon names: `['icon' => 'laptop']` → `<i class="fa-solid fa-laptop">`
+
+#### Using Blade FontAwesome (recommended)
+
+For projects using the [blade-fontawesome](https://github.com/owenvoke/blade-fontawesome) package:
+
+```php
+IconResolver::useBladeFontAwesome(); // fas style (default)
+IconResolver::useBladeFontAwesome('far'); // regular style
+```
+
+Options use simple icon names: `['icon' => 'laptop']` → `<x-fas-laptop />`
+
 #### Using Heroicons
 
 ```php
@@ -137,15 +150,17 @@ IconResolver::useHeroicons(); // solid style
 IconResolver::useHeroicons('outline'); // outline style
 ```
 
+Options use simple icon names: `['icon' => 'home']` → `<x-heroicon-s-home />`
+
 #### Using Blade Icons
 
-For any icon set that follows the Blade Icons convention (e.g., `x-fas-laptop`, `x-heroicon-o-home`):
+For any icon set that follows the Blade Icons convention:
 
 ```php
 IconResolver::useBladeIcons();
 ```
 
-With this resolver, pass full icon names in your options:
+With this resolver, pass full component names in your options:
 ```php
 ['icon' => 'fas-laptop'] // renders <x-fas-laptop />
 ['icon' => 'heroicon-o-home'] // renders <x-heroicon-o-home />
@@ -164,6 +179,16 @@ IconResolver::using(function (string $icon, ?string $color = null, string $size 
         'size' => $size,
     ])->render();
 });
+```
+
+#### Error Handling
+
+If an icon component cannot be found, a descriptive error is thrown:
+
+```
+Cascader: Unable to render icon component '<x-fas-missing />'.
+Original icon name: 'missing'.
+Make sure the icon exists or configure a different IconResolver.
 ```
 
 ### Publishing Assets
