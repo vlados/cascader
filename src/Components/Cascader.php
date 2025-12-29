@@ -21,6 +21,7 @@ class Cascader extends Component
         public bool $clearable = false,
         public ?string $cancelText = null,
         public ?string $confirmText = null,
+        public string $size = 'sm', // sm (default) or xs
     ) {
         $this->resolvedOptions = $this->resolveIcons($options);
     }

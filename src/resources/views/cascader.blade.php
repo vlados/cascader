@@ -9,47 +9,62 @@
     'clearable' => false,
     'cancelText' => 'Cancel',
     'confirmText' => 'Confirm',
+    'size' => 'sm',
 ])
+
+@php
+    // Match Flux UI select styling
+    $sizeClasses = match($size) {
+        'xs' => 'h-8 ps-2.5 pe-8 py-1.5 text-sm',
+        default => 'h-10 ps-3 pe-10 py-2 text-base sm:text-sm leading-[1.375rem]',
+    };
+    $iconSize = match($size) {
+        'xs' => 'size-4',
+        default => 'size-5',
+    };
+    $clearButtonPosition = match($size) {
+        'xs' => 'right-6',
+        default => 'right-8',
+    };
+
+    $wireModelAttribute = $attributes->wire('model');
+    $entangleExpression = $wireModelAttribute->value()
+        ? $wireModelAttribute->directive() === 'wire:model.live'
+            ? "\$wire.entangle('{$wireModelAttribute->value()}').live"
+            : "\$wire.entangle('{$wireModelAttribute->value()}')"
+        : 'null';
+@endphp
 
 <div
     x-data="cascader({
         options: {{ Js::from($resolvedOptions) }},
-        selectedValue: {{ Js::from($selectedText ? 'initial' : null) }},
-        initialText: {{ Js::from($selectedText) }},
+        modelValue: {{ $entangleExpression }},
         valueField: {{ Js::from($valueField) }},
         labelField: {{ Js::from($labelField) }}
     })"
-    x-init="selectedValue = $refs.hiddenInput?.value || null"
     x-ref="cascaderRoot"
-    x-effect="if (selectedValue !== null && $refs.hiddenInput) { $refs.hiddenInput.value = selectedValue; $refs.hiddenInput.dispatchEvent(new Event('input', { bubbles: true })); } if (!selectedValue) selectedText = null;"
     {{ $attributes->except(['wire:model', 'wire:model.live', 'wire:model.blur', 'wire:model.debounce'])->merge(['class' => 'relative']) }}
 >
-    {{-- Hidden input for Livewire binding --}}
-    @if($attributes->wire('model')->value())
-        <input type="hidden" x-ref="hiddenInput" {{ $attributes->wire('model') }} />
-    @elseif($wireModel)
-        <input type="hidden" x-ref="hiddenInput" wire:model.live="{{ $wireModel }}" />
-    @endif
     {{-- Trigger Button --}}
     <div class="relative">
         <button
             type="button"
             @click="openCascader()"
-            class="w-full flex items-center justify-between px-3 py-2 text-left bg-white border border-zinc-200 rounded-lg shadow-sm hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition-colors"
-            :class="{ 'border-zinc-400': open }"
+            class="w-full flex items-center justify-between {{ $sizeClasses }} text-left bg-white dark:bg-white/10 border border-zinc-200 border-b-zinc-300/80 dark:border-white/10 rounded-lg shadow-xs text-zinc-700 dark:text-zinc-300 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition-colors"
+            :class="{ 'border-zinc-400 dark:border-white/20': open }"
         >
-            <span x-show="!selectedText" class="text-zinc-400">{{ $placeholder }}</span>
-            <span x-show="selectedText" x-text="selectedText" class="text-zinc-900 truncate @if($clearable) pr-6 @endif"></span>
-            <svg class="size-5 text-zinc-400 shrink-0 ml-2 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span x-show="!selectedText" class="text-zinc-400 dark:text-zinc-400">{{ $placeholder }}</span>
+            <span x-show="selectedText" x-text="selectedText" class="text-zinc-700 dark:text-zinc-300 truncate @if($clearable) pr-6 @endif"></span>
+            <svg class="{{ $iconSize }} text-zinc-400 shrink-0 absolute right-3 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
         </button>
         @if($clearable)
             <button
                 type="button"
-                x-show="selectedValue"
+                x-show="modelValue"
                 @click.stop="clear()"
-                class="absolute right-9 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
+                class="absolute {{ $clearButtonPosition }} top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
                 x-cloak
             >
                 <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,7 +80,7 @@
         @close="open = false; search = '';"
         @click="if ($event.target === $el) { $el.close(); }"
         class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
-        :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; width: ${dropdownPosition.width}px;`"
+        :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
     >
         <div class="bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
             {{-- Search Input --}}
@@ -109,8 +124,8 @@
                         @click="selectSearchResult(result)"
                         class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 transition-colors"
                         :class="{
-                            'bg-teal-50 text-teal-700 font-medium': selectedValue === getValue(result),
-                            'text-zinc-700': selectedValue !== getValue(result)
+                            'bg-teal-50 text-teal-700 font-medium': modelValue === getValue(result),
+                            'text-zinc-700': modelValue !== getValue(result)
                         }"
                     >
                         <template x-if="result.iconHtml">
@@ -121,7 +136,7 @@
                             ></span>
                         </template>
                         <span class="truncate" x-text="result._parentLabel ? result._parentLabel + ' / ' + getLabel(result) : getLabel(result)"></span>
-                        <svg x-show="selectedValue === getValue(result)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg x-show="modelValue === getValue(result)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                         </svg>
                     </button>
@@ -177,8 +192,8 @@
                                 @click="selectChild(child)"
                                 class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 transition-colors whitespace-nowrap"
                                 :class="{
-                                    'bg-teal-50 text-teal-700 font-medium': selectedValue === getValue(child),
-                                    'text-zinc-700': selectedValue !== getValue(child)
+                                    'bg-teal-50 text-teal-700 font-medium': modelValue === getValue(child),
+                                    'text-zinc-700': modelValue !== getValue(child)
                                 }"
                             >
                                 <template x-if="child.iconHtml">
@@ -189,7 +204,7 @@
                                     ></span>
                                 </template>
                                 <span x-text="getLabel(child)"></span>
-                                <svg x-show="selectedValue === getValue(child)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <svg x-show="modelValue === getValue(child)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                                 </svg>
                             </button>
