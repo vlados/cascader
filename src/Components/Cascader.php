@@ -12,7 +12,7 @@ class Cascader extends Component
 
     public function __construct(
         public array $options = [],
-        public ?string $wireModel = null,
+        public ?string $wireModel = null, // Deprecated: use wire:model instead
         public ?string $placeholder = null,
         public ?string $selectedText = null,
         public string $valueField = 'id',

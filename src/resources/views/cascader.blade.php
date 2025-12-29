@@ -11,10 +11,17 @@
     'confirmText' => 'Confirm',
 ])
 
+@php
+    // Support standard wire:model syntax (preferred) or legacy wire-model prop
+    $wireModelAttribute = $attributes->wire('model');
+    $hasWireModel = $wireModelAttribute->value() || $wireModel;
+    $modelExpression = $wireModelAttribute->value() ?: $wireModel;
+@endphp
+
 <div
     x-data="cascader({
         options: {{ Js::from($resolvedOptions) }},
-        selectedValue: @if($wireModel) $wire.entangle('{{ $wireModel }}') @else null @endif,
+        selectedValue: @if($hasWireModel) @entangle($wireModelAttribute->value() ? $wireModelAttribute : $wireModel) @else null @endif,
         initialText: {{ Js::from($selectedText) }},
         valueField: {{ Js::from($valueField) }},
         labelField: {{ Js::from($labelField) }}
@@ -22,7 +29,7 @@
     x-init="init()"
     x-ref="cascaderRoot"
     x-effect="if (!selectedValue) selectedText = null"
-    {{ $attributes->merge(['class' => 'relative']) }}
+    {{ $attributes->except(['wire:model', 'wire:model.live', 'wire:model.blur', 'wire:model.debounce'])->merge(['class' => 'relative']) }}
 >
     {{-- Trigger Button --}}
     <div class="relative">
