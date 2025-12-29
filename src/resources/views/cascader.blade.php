@@ -11,26 +11,25 @@
     'confirmText' => 'Confirm',
 ])
 
-@php
-    // Support standard wire:model syntax (preferred) or legacy wire-model prop
-    $wireModelAttribute = $attributes->wire('model');
-    $hasWireModel = $wireModelAttribute->value() || $wireModel;
-    $modelExpression = $wireModelAttribute->value() ?: $wireModel;
-@endphp
-
 <div
     x-data="cascader({
         options: {{ Js::from($resolvedOptions) }},
-        selectedValue: @if($hasWireModel) @entangle($wireModelAttribute->value() ? $wireModelAttribute : $wireModel) @else null @endif,
+        selectedValue: {{ Js::from($selectedText ? 'initial' : null) }},
         initialText: {{ Js::from($selectedText) }},
         valueField: {{ Js::from($valueField) }},
         labelField: {{ Js::from($labelField) }}
     })"
-    x-init="init()"
+    x-init="selectedValue = $refs.hiddenInput?.value || null"
     x-ref="cascaderRoot"
-    x-effect="if (!selectedValue) selectedText = null"
+    x-effect="if (selectedValue !== null && $refs.hiddenInput) { $refs.hiddenInput.value = selectedValue; $refs.hiddenInput.dispatchEvent(new Event('input', { bubbles: true })); } if (!selectedValue) selectedText = null;"
     {{ $attributes->except(['wire:model', 'wire:model.live', 'wire:model.blur', 'wire:model.debounce'])->merge(['class' => 'relative']) }}
 >
+    {{-- Hidden input for Livewire binding --}}
+    @if($attributes->wire('model')->value())
+        <input type="hidden" x-ref="hiddenInput" {{ $attributes->wire('model') }} />
+    @elseif($wireModel)
+        <input type="hidden" x-ref="hiddenInput" wire:model.live="{{ $wireModel }}" />
+    @endif
     {{-- Trigger Button --}}
     <div class="relative">
         <button
