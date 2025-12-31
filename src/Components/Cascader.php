@@ -22,17 +22,18 @@ class Cascader extends Component
         public ?string $cancelText = null,
         public ?string $confirmText = null,
         public string $size = 'sm', // sm (default) or xs
+        public bool $multiple = false, // Enable multi-select with checkboxes
     ) {
         $this->resolvedOptions = $this->resolveIcons($options);
     }
 
     /**
-     * Process options and resolve icons to HTML.
+     * Process options and resolve icons to HTML recursively for unlimited levels.
      */
     protected function resolveIcons(array $options): array
     {
         return array_map(function ($option) {
-            // Resolve parent icon
+            // Resolve icon for this option
             if (!empty($option['icon'])) {
                 $option['iconHtml'] = IconResolver::resolve(
                     $option['icon'],
@@ -41,18 +42,9 @@ class Cascader extends Component
                 );
             }
 
-            // Resolve children icons
+            // Recursively resolve children icons (supports unlimited depth)
             if (!empty($option['children'])) {
-                $option['children'] = array_map(function ($child) {
-                    if (!empty($child['icon'])) {
-                        $child['iconHtml'] = IconResolver::resolve(
-                            $child['icon'],
-                            $child['color'] ?? null,
-                            'sm'
-                        );
-                    }
-                    return $child;
-                }, $option['children']);
+                $option['children'] = $this->resolveIcons($option['children']);
             }
 
             return $option;

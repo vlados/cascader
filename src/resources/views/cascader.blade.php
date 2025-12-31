@@ -10,6 +10,7 @@
     'cancelText' => 'Cancel',
     'confirmText' => 'Confirm',
     'size' => 'sm',
+    'multiple' => false,
 ])
 
 @php
@@ -38,9 +39,10 @@
 <div
     x-data="cascader({
         options: {{ Js::from($resolvedOptions) }},
-        modelValue: {{ $entangleExpression }},
+        selectedValue: {{ $entangleExpression }},
         valueField: {{ Js::from($valueField) }},
-        labelField: {{ Js::from($labelField) }}
+        labelField: {{ Js::from($labelField) }},
+        multiple: {{ Js::from($multiple) }}
     })"
     x-ref="cascaderRoot"
     {{ $attributes->except(['wire:model', 'wire:model.live', 'wire:model.blur', 'wire:model.debounce'])->merge(['class' => 'relative']) }}
@@ -62,7 +64,7 @@
         @if($clearable)
             <button
                 type="button"
-                x-show="modelValue"
+                x-show="selectedValue && (multiple ? selectedValue.length > 0 : true)"
                 @click.stop="clear()"
                 class="absolute {{ $clearButtonPosition }} top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
                 x-cloak
@@ -82,9 +84,9 @@
         class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
         :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
     >
-        <div class="bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+        <div class="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
             {{-- Search Input --}}
-            <div class="p-2 border-b border-zinc-100">
+            <div class="p-2 border-b border-zinc-100 dark:border-zinc-700">
                 <div class="relative">
                     <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -96,7 +98,7 @@
                         @keydown.escape.stop="if (search) { search = ''; } else { $refs.desktopDialog.close(); }"
                         @keydown.enter.prevent
                         placeholder="{{ $searchPlaceholder }}"
-                        class="w-full pl-8 pr-8 py-1.5 text-sm border border-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400"
+                        class="w-full pl-8 pr-8 py-1.5 text-sm border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 rounded-md focus:outline-none focus:ring-1 focus:ring-zinc-400 focus:border-zinc-400"
                     />
                     <button
                         type="button"
@@ -114,20 +116,29 @@
             {{-- Search Results View --}}
             <div x-show="isSearching" class="max-h-72 overflow-y-auto">
                 <template x-if="searchResults.length === 0">
-                    <div class="px-3 py-6 text-center text-sm text-zinc-500">
+                    <div class="px-3 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
                         No results found
                     </div>
                 </template>
-                <template x-for="result in searchResults" :key="getValue(result) + (result._isParent ? '-parent' : '-child')">
+                <template x-for="result in searchResults" :key="getValue(result) + '-search'">
                     <button
                         type="button"
                         @click="selectSearchResult(result)"
-                        class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 transition-colors"
+                        class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                         :class="{
-                            'bg-teal-50 text-teal-700 font-medium': modelValue === getValue(result),
-                            'text-zinc-700': modelValue !== getValue(result)
+                            'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 font-medium': isOptionSelected(result),
+                            'text-zinc-700 dark:text-zinc-300': !isOptionSelected(result)
                         }"
                     >
+                        @if($multiple)
+                            {{-- Checkbox --}}
+                            <span class="flex items-center justify-center size-4 border rounded shrink-0 transition-colors"
+                                :class="isOptionSelected(result) ? 'bg-teal-500 border-teal-500' : 'border-zinc-300 dark:border-zinc-500'">
+                                <svg x-show="isOptionSelected(result)" class="size-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                            </span>
+                        @endif
                         <template x-if="result.iconHtml">
                             <span
                                 class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
@@ -135,82 +146,73 @@
                                 x-html="result.iconHtml"
                             ></span>
                         </template>
-                        <span class="truncate" x-text="result._parentLabel ? result._parentLabel + ' / ' + getLabel(result) : getLabel(result)"></span>
-                        <svg x-show="modelValue === getValue(result)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                        </svg>
+                        <span class="truncate" x-text="result._pathLabels.join(' / ')"></span>
+                        @if(!$multiple)
+                            <svg x-show="isOptionSelected(result)" class="size-4 text-teal-600 dark:text-teal-400 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                        @endif
                     </button>
                 </template>
             </div>
 
-            {{-- Normal Cascader View --}}
-            <div x-show="!isSearching" class="flex">
-                {{-- Parent Options Column --}}
-                <div class="min-w-max max-h-72 overflow-y-auto border-r border-zinc-100">
-                    <template x-for="parent in options" :key="getValue(parent)">
-                        <button
-                            type="button"
-                            @click="selectParent(parent)"
-                            @mouseenter="hoverParent(parent)"
-                            class="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 transition-colors whitespace-nowrap"
-                            :class="{
-                                'bg-zinc-100 font-medium': getValue(hoveredParent) === getValue(parent) || (!hoveredParent && selectedParentValue === getValue(parent)),
-                                'text-zinc-900': true,
-                                'cursor-default': parent.children && parent.children.length > 0,
-                                'cursor-pointer': !parent.children || parent.children.length === 0
-                            }"
-                        >
-                            <span class="flex items-center gap-2">
-                                <template x-if="parent.iconHtml">
-                                    <span
-                                        class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
-                                        :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
-                                        x-html="parent.iconHtml"
-                                    ></span>
-                                </template>
-                                <span x-text="getLabel(parent)"></span>
-                            </span>
-                            <svg x-show="parent.children && parent.children.length > 0" class="size-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                            </svg>
-                        </button>
-                    </template>
-                </div>
-
-                {{-- Child Options Column --}}
-                <div
-                    x-show="currentChildren.length > 0"
-                    x-transition:enter="transition ease-out duration-100"
-                    x-transition:enter-start="opacity-0"
-                    x-transition:enter-end="opacity-100"
-                    class="max-h-72 overflow-y-auto flex-1"
-                >
-                    <div class="min-w-max">
-                        <template x-for="child in currentChildren" :key="getValue(child)">
+            {{-- Normal Cascader View (Multi-Level Columns) --}}
+            <div x-show="!isSearching" class="flex max-h-72 overflow-x-auto">
+                {{-- Dynamic columns based on navigation depth --}}
+                <template x-for="(level, levelIndex) in columnCount" :key="'level-' + levelIndex">
+                    <div
+                        class="min-w-[180px] max-h-72 overflow-y-auto border-r border-zinc-100 dark:border-zinc-700 last:border-r-0 shrink-0"
+                        x-show="getOptionsForLevel(levelIndex).length > 0"
+                    >
+                        <template x-for="option in getOptionsForLevel(levelIndex)" :key="getValue(option)">
                             <button
                                 type="button"
-                                @click="selectChild(child)"
-                                class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 transition-colors whitespace-nowrap"
+                                @click="multiple ? (hasChildren(option) ? navigateToOption(option, levelIndex) : toggleCheckbox(option, levelIndex)) : navigateToOption(option, levelIndex)"
+                                @mouseenter="hasChildren(option) ? navigateToOption(option, levelIndex) : null"
+                                class="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap"
                                 :class="{
-                                    'bg-teal-50 text-teal-700 font-medium': modelValue === getValue(child),
-                                    'text-zinc-700': modelValue !== getValue(child)
+                                    'bg-zinc-100 dark:bg-zinc-700 font-medium': isOptionActive(option, levelIndex),
+                                    'bg-teal-50 dark:bg-teal-900/30': !multiple && isOptionSelected(option),
+                                    'text-zinc-900 dark:text-zinc-100': true,
+                                    'cursor-default': hasChildren(option),
+                                    'cursor-pointer': !hasChildren(option)
                                 }"
                             >
-                                <template x-if="child.iconHtml">
-                                    <span
-                                        class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
-                                        :style="'background-color: ' + (child.color || '#6B7280') + '20'"
-                                        x-html="child.iconHtml"
-                                    ></span>
-                                </template>
-                                <span x-text="getLabel(child)"></span>
-                                <svg x-show="modelValue === getValue(child)" class="size-4 text-teal-600 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                <span class="flex items-center gap-2">
+                                    @if($multiple)
+                                        {{-- Checkbox (only for leaf nodes) --}}
+                                        <template x-if="!hasChildren(option)">
+                                            <span class="flex items-center justify-center size-4 border rounded shrink-0 transition-colors"
+                                                :class="isOptionSelected(option) ? 'bg-teal-500 border-teal-500' : 'border-zinc-300 dark:border-zinc-500'">
+                                                <svg x-show="isOptionSelected(option)" class="size-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </span>
+                                        </template>
+                                    @endif
+                                    <template x-if="option.iconHtml">
+                                        <span
+                                            class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
+                                            :style="'background-color: ' + (option.color || '#6B7280') + '20'"
+                                            x-html="option.iconHtml"
+                                        ></span>
+                                    </template>
+                                    <span x-text="getLabel(option)"></span>
+                                </span>
+                                {{-- Arrow for parent nodes --}}
+                                <svg x-show="hasChildren(option)" class="size-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>
+                                {{-- Checkmark for selected leaf (single-select mode) --}}
+                                @if(!$multiple)
+                                    <svg x-show="!hasChildren(option) && isOptionSelected(option)" class="size-4 text-teal-600 dark:text-teal-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                @endif
                             </button>
                         </template>
                     </div>
-                </div>
+                </template>
             </div>
         </div>
     </dialog>
@@ -231,127 +233,112 @@
                 x-transition:leave="transition ease-in duration-200"
                 x-transition:leave-start="translate-y-0"
                 x-transition:leave-end="translate-y-full"
-                class="w-full bg-white rounded-t-2xl max-h-[70vh] flex flex-col"
+                class="w-full bg-white dark:bg-zinc-800 rounded-t-2xl max-h-[70vh] flex flex-col"
             >
                 {{-- Header with Cancel/Confirm --}}
-                <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-200">
+                <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
                     <button
                         type="button"
                         @click="mobileCancel()"
-                        class="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-md text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+                        class="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-md text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                     >
                         {{ $cancelText }}
                     </button>
+                    @if($multiple)
+                        <span class="text-sm text-zinc-500 dark:text-zinc-400" x-show="tempSelectedValue && tempSelectedValue.length > 0" x-text="tempSelectedValue.length + ' selected'"></span>
+                    @endif
                     <button
                         type="button"
                         @click="mobileConfirm()"
                         class="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-md transition-colors"
-                        :class="tempSelectedValue ? 'bg-zinc-900 text-white hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'"
-                        :disabled="!tempSelectedValue"
+                        :class="(multiple ? (tempSelectedValue && tempSelectedValue.length > 0) : tempSelectedValue) ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'"
+                        :disabled="multiple ? (!tempSelectedValue || tempSelectedValue.length === 0) : !tempSelectedValue"
                     >
                         {{ $confirmText }}
                     </button>
                 </div>
 
-                {{-- Tabs / Breadcrumb --}}
-                <div class="flex items-center gap-1 px-4 py-2 border-b border-zinc-100 overflow-x-auto">
-                    {{-- Parent tab (when viewing children) --}}
-                    <template x-if="mobileSelectedParent">
-                        <button
-                            type="button"
-                            @click="mobileGoToParents()"
-                            class="shrink-0 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-                            :class="{
-                                'text-teal-600 bg-teal-50': mobileLevel === 0,
-                                'text-zinc-500 hover:text-zinc-700': mobileLevel !== 0
-                            }"
-                            x-text="getLabel(mobileSelectedParent)"
-                        ></button>
-                    </template>
-                    {{-- Child tab (when child is selected) --}}
-                    <template x-if="mobileSelectedParent && tempSelectedValue && tempSelectedValue !== getValue(mobileSelectedParent)">
+                {{-- Breadcrumb Navigation --}}
+                <div class="flex items-center gap-1 px-4 py-2 border-b border-zinc-100 dark:border-zinc-700 overflow-x-auto" x-show="mobilePath.length > 0">
+                    {{-- Root button --}}
+                    <button
+                        type="button"
+                        @click="mobileGoToLevel(0)"
+                        class="shrink-0 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+                        :class="mobileLevel === 0 ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                    >
+                        All
+                    </button>
+                    {{-- Path breadcrumbs --}}
+                    <template x-for="(pathItem, pathIndex) in mobilePath" :key="getValue(pathItem)">
                         <div class="flex items-center gap-1">
-                            <svg class="size-4 text-zinc-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="size-4 text-zinc-300 dark:text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
-                            <span
-                                class="shrink-0 px-3 py-1.5 text-sm font-medium rounded-md text-teal-600 bg-teal-50"
-                                x-text="mobileSelectedChildLabel"
-                            ></span>
+                            <button
+                                type="button"
+                                @click="mobileGoToLevel(pathIndex + 1)"
+                                class="shrink-0 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+                                :class="mobileLevel === pathIndex + 1 ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'"
+                                x-text="getLabel(pathItem)"
+                            ></button>
                         </div>
                     </template>
                 </div>
 
                 {{-- Options List --}}
                 <div class="flex-1 overflow-y-auto">
-                    {{-- Level 0: Parents --}}
-                    <div x-show="mobileLevel === 0">
-                        <template x-for="parent in options" :key="getValue(parent)">
-                            <button
-                                type="button"
-                                @click="mobileSelectParent(parent)"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50 transition-colors border-b border-zinc-100"
-                                :class="{
-                                    'bg-teal-50': tempSelectedValue === getValue(parent),
-                                    'text-zinc-900': true
-                                }"
-                            >
-                                <span class="flex items-center gap-3">
-                                    <template x-if="parent.iconHtml">
-                                        <span
-                                            class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
-                                            :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
-                                            x-html="parent.iconHtml"
-                                        ></span>
+                    <template x-for="option in mobileOptions" :key="getValue(option)">
+                        <button
+                            type="button"
+                            @click="mobileSelectOption(option)"
+                            class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors border-b border-zinc-100 dark:border-zinc-700"
+                            :class="{
+                                'bg-teal-50 dark:bg-teal-900/30': isMobileTempSelected(option),
+                                'text-zinc-900 dark:text-zinc-100': true
+                            }"
+                        >
+                            <span class="flex items-center gap-3">
+                                @if($multiple)
+                                    {{-- Checkbox (only for leaf nodes) --}}
+                                    <template x-if="!hasChildren(option)">
+                                        <span class="flex items-center justify-center size-5 border rounded shrink-0 transition-colors"
+                                            :class="isMobileTempSelected(option) ? 'bg-teal-500 border-teal-500' : 'border-zinc-300 dark:border-zinc-500'">
+                                            <svg x-show="isMobileTempSelected(option)" class="size-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        </span>
                                     </template>
-                                    <span class="text-base" x-text="getLabel(parent)"></span>
-                                </span>
-                                <template x-if="parent.children && parent.children.length > 0">
-                                    <svg class="size-5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                    </svg>
+                                @endif
+                                <template x-if="option.iconHtml">
+                                    <span
+                                        class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
+                                        :style="'background-color: ' + (option.color || '#6B7280') + '20'"
+                                        x-html="option.iconHtml"
+                                    ></span>
                                 </template>
-                                <template x-if="(!parent.children || parent.children.length === 0) && tempSelectedValue === getValue(parent)">
-                                    <svg class="size-5 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <span class="text-base" x-text="getLabel(option)"></span>
+                            </span>
+                            {{-- Arrow for parent nodes --}}
+                            <template x-if="hasChildren(option)">
+                                <svg class="size-5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </template>
+                            {{-- Checkmark for selected leaf (single-select mode) --}}
+                            @if(!$multiple)
+                                <template x-if="!hasChildren(option) && isMobileTempSelected(option)">
+                                    <svg class="size-5 text-teal-600 dark:text-teal-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                                     </svg>
                                 </template>
-                            </button>
-                        </template>
-                    </div>
-
-                    {{-- Level 1: Children --}}
-                    <div x-show="mobileLevel === 1">
-                        <template x-for="child in mobileChildren" :key="getValue(child)">
-                            <button
-                                type="button"
-                                @click="mobileSelectChild(child)"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50 transition-colors border-b border-zinc-100"
-                                :class="{
-                                    'bg-teal-50': tempSelectedValue === getValue(child),
-                                    'text-zinc-900': true
-                                }"
-                            >
-                                <span class="flex items-center gap-3">
-                                    <template x-if="child.iconHtml">
-                                        <span
-                                            class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
-                                            :style="'background-color: ' + (child.color || '#6B7280') + '20'"
-                                            x-html="child.iconHtml"
-                                        ></span>
-                                    </template>
-                                    <span class="text-base" x-text="getLabel(child)"></span>
-                                </span>
-                                <svg x-show="tempSelectedValue === getValue(child)" class="size-5 text-teal-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                                </svg>
-                            </button>
-                        </template>
-                    </div>
+                            @endif
+                        </button>
+                    </template>
                 </div>
 
                 {{-- Safe area padding for iOS --}}
-                <div class="h-safe-area-inset-bottom bg-white"></div>
+                <div class="h-safe-area-inset-bottom bg-white dark:bg-zinc-800"></div>
             </div>
         </div>
     </dialog>

@@ -2,25 +2,36 @@
  * Cascader Alpine.js Component
  *
  * A cascading dropdown component for hierarchical data selection.
- * Supports desktop (two-column) and mobile (bottom sheet) views.
+ * Supports unlimited depth levels, desktop (multi-column) and mobile (bottom sheet) views.
+ * Includes optional multi-select mode with checkboxes.
  */
 
-export function cascader({ options, selectedValue, initialText, valueField = 'id', labelField = 'name' }) {
+export function cascader({
+    options,
+    selectedValue,
+    initialText,
+    valueField = 'id',
+    labelField = 'name',
+    multiple = false
+}) {
     return {
         options: options || [],
         selectedValue: selectedValue,
         selectedText: initialText,
         valueField: valueField,
         labelField: labelField,
+        multiple: multiple,
         open: false,
-        hoveredParent: null,
-        hoveredParentValue: null,
         search: '',
+
+        // Multi-level navigation state (array of selected options per level)
+        // levels[0] = selected option at level 0, levels[1] = selected option at level 1, etc.
+        levels: [],
 
         // Mobile-specific state
         isMobile: false,
-        mobileLevel: 0, // 0 = parents, 1 = children
-        mobileSelectedParent: null,
+        mobileLevel: 0,
+        mobilePath: [], // Breadcrumb path of selected options
         tempSelectedValue: null,
         tempSelectedText: null,
 
@@ -40,6 +51,11 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
                     this.updateDropdownPosition();
                 }
             }, true);
+
+            // Initialize selected text from value if not provided
+            if (this.selectedValue && !this.selectedText) {
+                this.updateSelectedTextFromValue();
+            }
         },
 
         updateDropdownPosition() {
@@ -48,14 +64,14 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
 
             const rect = root.getBoundingClientRect();
             this.dropdownPosition = {
-                top: rect.bottom + 4, // 4px gap (mt-1)
+                top: rect.bottom + 4,
                 left: rect.left,
                 width: rect.width
             };
         },
 
         checkMobile() {
-            this.isMobile = window.innerWidth < 640; // sm breakpoint
+            this.isMobile = window.innerWidth < 640;
         },
 
         getValue(item) {
@@ -66,100 +82,304 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             return item?.label || item?.[this.labelField];
         },
 
+        hasChildren(item) {
+            return item?.children && item.children.length > 0;
+        },
+
         get isSearching() {
             return this.search.trim().length > 0;
         },
 
+        /**
+         * Recursively search through all levels of options.
+         */
         get searchResults() {
             if (!this.isSearching) return [];
 
             const query = this.search.toLowerCase().trim();
             const results = [];
 
-            for (const parent of this.options) {
-                if (this.getLabel(parent).toLowerCase().includes(query)) {
-                    results.push({
-                        ...parent,
-                        _isParent: true,
-                        _parentLabel: null
-                    });
-                }
+            const searchRecursive = (items, path = []) => {
+                for (const item of items) {
+                    const currentPath = [...path, item];
+                    const label = this.getLabel(item).toLowerCase();
 
-                if (parent.children) {
-                    for (const child of parent.children) {
-                        if (this.getLabel(child).toLowerCase().includes(query)) {
-                            results.push({
-                                ...child,
-                                _isParent: false,
-                                _parentLabel: this.getLabel(parent),
-                                _parent: parent
-                            });
-                        }
+                    if (label.includes(query)) {
+                        results.push({
+                            ...item,
+                            _path: currentPath,
+                            _pathLabels: currentPath.map(p => this.getLabel(p)),
+                            _isLeaf: !this.hasChildren(item)
+                        });
+                    }
+
+                    if (this.hasChildren(item)) {
+                        searchRecursive(item.children, currentPath);
                     }
                 }
-            }
+            };
 
+            searchRecursive(this.options);
             return results;
         },
 
-        get currentChildren() {
-            const parent = this.hoveredParent || this.findParentByChildValue(this.selectedValue);
-            return parent?.children || [];
+        /**
+         * Get options for a specific column level.
+         * Level 0 shows root options, level 1 shows children of selected level 0 option, etc.
+         */
+        getOptionsForLevel(level) {
+            if (level === 0) {
+                return this.options;
+            }
+
+            const parentOption = this.levels[level - 1];
+            return parentOption?.children || [];
         },
 
-        get selectedParentValue() {
-            const parent = this.findParentByChildValue(this.selectedValue);
-            return parent ? this.getValue(parent) : null;
+        /**
+         * Get the number of columns to display (based on current navigation depth).
+         */
+        get columnCount() {
+            // Always show at least 1 column
+            // Show additional columns based on navigation depth
+            let count = 1;
+            for (let i = 0; i < this.levels.length; i++) {
+                if (this.levels[i] && this.hasChildren(this.levels[i])) {
+                    count++;
+                }
+            }
+            return count;
         },
 
-        // Mobile: get children of selected parent
-        get mobileChildren() {
-            return this.mobileSelectedParent?.children || [];
+        /**
+         * Check if an option is currently selected/hovered at its level.
+         */
+        isOptionActive(option, level) {
+            return this.levels[level] && this.getValue(this.levels[level]) === this.getValue(option);
         },
 
-        // Mobile: get label of selected child
-        get mobileSelectedChildLabel() {
-            if (!this.mobileSelectedParent || !this.tempSelectedValue) return null;
-            const child = this.mobileSelectedParent.children?.find(c => this.getValue(c) === this.tempSelectedValue);
-            return child ? this.getLabel(child) : null;
+        /**
+         * Check if an option is the final selected value (for checkmark display).
+         */
+        isOptionSelected(option) {
+            if (this.multiple) {
+                return this.isValueSelected(this.getValue(option));
+            }
+            return this.selectedValue === this.getValue(option);
+        },
+
+        /**
+         * For multi-select: check if a value is in the selected array.
+         */
+        isValueSelected(value) {
+            if (!this.multiple || !this.selectedValue) return false;
+            return Array.isArray(this.selectedValue) && this.selectedValue.includes(value);
+        },
+
+        /**
+         * Navigate into an option at a specific level.
+         */
+        navigateToOption(option, level) {
+            // Update the levels array
+            this.levels = this.levels.slice(0, level);
+            this.levels[level] = option;
+
+            // If this is a leaf node in single-select mode, select it
+            if (!this.hasChildren(option) && !this.multiple) {
+                this.selectOption(option, level);
+            }
+        },
+
+        /**
+         * Select an option (for single-select mode).
+         */
+        selectOption(option, level) {
+            // Build the full path text
+            const pathLabels = [];
+            for (let i = 0; i <= level; i++) {
+                if (this.levels[i]) {
+                    pathLabels.push(this.getLabel(this.levels[i]));
+                }
+            }
+
+            this.selectedValue = this.getValue(option);
+            this.selectedText = pathLabels.join(' / ');
+            this.closeCascader();
+        },
+
+        /**
+         * Toggle checkbox selection for multi-select mode.
+         */
+        toggleCheckbox(option, level) {
+            if (!this.multiple) return;
+
+            const value = this.getValue(option);
+
+            // Initialize as array if needed
+            if (!Array.isArray(this.selectedValue)) {
+                this.selectedValue = this.selectedValue ? [this.selectedValue] : [];
+            }
+
+            const index = this.selectedValue.indexOf(value);
+            if (index > -1) {
+                // Remove from selection
+                this.selectedValue = this.selectedValue.filter(v => v !== value);
+            } else {
+                // Add to selection
+                this.selectedValue = [...this.selectedValue, value];
+            }
+
+            this.updateMultiSelectText();
+        },
+
+        /**
+         * Update display text for multi-select mode.
+         */
+        updateMultiSelectText() {
+            if (!this.multiple || !this.selectedValue || !Array.isArray(this.selectedValue)) {
+                this.selectedText = null;
+                return;
+            }
+
+            if (this.selectedValue.length === 0) {
+                this.selectedText = null;
+                return;
+            }
+
+            // Find labels for all selected values
+            const labels = [];
+            const findLabel = (items, targetValue, path = []) => {
+                for (const item of items) {
+                    const currentPath = [...path, this.getLabel(item)];
+                    if (this.getValue(item) === targetValue) {
+                        return currentPath.join(' / ');
+                    }
+                    if (this.hasChildren(item)) {
+                        const found = findLabel(item.children, targetValue, currentPath);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+
+            for (const value of this.selectedValue) {
+                const label = findLabel(this.options, value);
+                if (label) labels.push(label);
+            }
+
+            this.selectedText = labels.length > 0 ? `${labels.length} selected` : null;
+        },
+
+        /**
+         * Update selected text from value (for initialization).
+         */
+        updateSelectedTextFromValue() {
+            if (this.multiple) {
+                this.updateMultiSelectText();
+                return;
+            }
+
+            if (!this.selectedValue) {
+                this.selectedText = null;
+                return;
+            }
+
+            const findPath = (items, targetValue, path = []) => {
+                for (const item of items) {
+                    const currentPath = [...path, this.getLabel(item)];
+                    if (this.getValue(item) === targetValue) {
+                        return currentPath;
+                    }
+                    if (this.hasChildren(item)) {
+                        const found = findPath(item.children, targetValue, currentPath);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+
+            const path = findPath(this.options, this.selectedValue);
+            this.selectedText = path ? path.join(' / ') : null;
+        },
+
+        /**
+         * Select a search result.
+         */
+        selectSearchResult(result) {
+            if (this.multiple) {
+                // Toggle checkbox for the result
+                const value = this.getValue(result);
+                if (!Array.isArray(this.selectedValue)) {
+                    this.selectedValue = this.selectedValue ? [this.selectedValue] : [];
+                }
+                const index = this.selectedValue.indexOf(value);
+                if (index > -1) {
+                    this.selectedValue = this.selectedValue.filter(v => v !== value);
+                } else {
+                    this.selectedValue = [...this.selectedValue, value];
+                }
+                this.updateMultiSelectText();
+            } else {
+                this.selectedValue = this.getValue(result);
+                this.selectedText = result._pathLabels.join(' / ');
+                this.closeCascader();
+            }
+        },
+
+        /**
+         * Find the path to a value in the options tree.
+         */
+        findPathToValue(value, items = null, path = []) {
+            items = items || this.options;
+            for (const item of items) {
+                const currentPath = [...path, item];
+                if (this.getValue(item) === value) {
+                    return currentPath;
+                }
+                if (this.hasChildren(item)) {
+                    const found = this.findPathToValue(value, item.children, currentPath);
+                    if (found) return found;
+                }
+            }
+            return null;
         },
 
         openCascader() {
             this.open = true;
+            this.levels = [];
+
+            // Restore navigation state from selected value
+            if (this.selectedValue && !this.multiple) {
+                const path = this.findPathToValue(this.selectedValue);
+                if (path) {
+                    this.levels = path;
+                }
+            }
 
             if (!this.isMobile) {
-                // Update dropdown position and show dialog
                 this.$nextTick(() => {
                     this.updateDropdownPosition();
                     this.$refs.desktopDialog?.showModal();
-                    // Focus search input
                     this.$refs.searchInput?.focus();
                 });
             } else {
                 // Initialize mobile state
                 this.mobileLevel = 0;
-                this.mobileSelectedParent = null;
-                this.tempSelectedValue = this.selectedValue;
+                this.mobilePath = [];
+                this.tempSelectedValue = this.multiple
+                    ? (Array.isArray(this.selectedValue) ? [...this.selectedValue] : (this.selectedValue ? [this.selectedValue] : []))
+                    : this.selectedValue;
                 this.tempSelectedText = this.selectedText;
 
-                // If there's an existing selection, restore the state
-                if (this.selectedValue) {
-                    const parent = this.findParentByChildValue(this.selectedValue);
-                    if (parent) {
-                        // Check if selected value is the parent itself
-                        if (this.getValue(parent) === this.selectedValue) {
-                            // Parent is selected (no children case)
-                            this.mobileSelectedParent = null;
-                            this.mobileLevel = 0;
-                        } else {
-                            // Child is selected
-                            this.mobileSelectedParent = parent;
-                            this.mobileLevel = 1;
-                        }
+                // Restore mobile navigation state from selected value
+                if (this.selectedValue && !this.multiple) {
+                    const path = this.findPathToValue(this.selectedValue);
+                    if (path && path.length > 0) {
+                        this.mobilePath = path.slice(0, -1);
+                        this.mobileLevel = this.mobilePath.length;
                     }
                 }
 
-                // Show mobile dialog
                 this.$nextTick(() => {
                     this.$refs.mobileDialog?.showModal();
                 });
@@ -169,122 +389,93 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         closeCascader() {
             this.open = false;
             this.search = '';
-            this.hoveredParent = null;
-            this.hoveredParentValue = null;
+            this.levels = [];
 
-            // Close dialogs
             this.$refs.desktopDialog?.close();
             this.$refs.mobileDialog?.close();
 
             if (this.isMobile) {
                 this.mobileLevel = 0;
-                this.mobileSelectedParent = null;
+                this.mobilePath = [];
                 this.tempSelectedValue = null;
                 this.tempSelectedText = null;
             }
         },
 
-        // Mobile: cancel and close
+        // ==================== Mobile Methods ====================
+
         mobileCancel() {
             this.closeCascader();
         },
 
-        // Mobile: confirm selection
         mobileConfirm() {
-            if (this.tempSelectedValue) {
+            if (this.multiple) {
+                this.selectedValue = this.tempSelectedValue;
+                this.updateMultiSelectText();
+            } else if (this.tempSelectedValue) {
                 this.selectedValue = this.tempSelectedValue;
                 this.selectedText = this.tempSelectedText;
             }
             this.closeCascader();
         },
 
-        // Mobile: select a parent
-        mobileSelectParent(parent) {
-            const hasChildren = parent.children && parent.children.length > 0;
-
-            if (!hasChildren) {
-                // Parent is a leaf node, select it
-                this.tempSelectedValue = this.getValue(parent);
-                this.tempSelectedText = this.getLabel(parent);
-                this.mobileSelectedParent = null;
-            } else {
-                // Parent has children, go to level 1
-                this.mobileSelectedParent = parent;
-                this.mobileLevel = 1;
+        /**
+         * Get options for the current mobile level.
+         */
+        get mobileOptions() {
+            if (this.mobileLevel === 0) {
+                return this.options;
             }
+            const parent = this.mobilePath[this.mobileLevel - 1];
+            return parent?.children || [];
         },
 
-        // Mobile: select a child
-        mobileSelectChild(child) {
-            this.tempSelectedValue = this.getValue(child);
-            this.tempSelectedText = this.getLabel(this.mobileSelectedParent) + ' / ' + this.getLabel(child);
-        },
-
-        // Mobile: go back to parents
-        mobileGoToParents() {
-            this.mobileLevel = 0;
-            this.mobileSelectedParent = null;
-        },
-
-        hoverParent(parent) {
-            this.hoveredParent = parent;
-            this.hoveredParentValue = this.getValue(parent);
-        },
-
-        selectParent(parent) {
-            const hasChildren = parent.children && parent.children.length > 0;
-
-            if (!hasChildren) {
-                this.selectedValue = this.getValue(parent);
-                this.selectedText = this.getLabel(parent);
-                this.hoveredParent = null;
-                this.hoveredParentValue = null;
-                this.search = '';
-                this.open = false;
-                this.$refs.desktopDialog?.close();
-            }
-        },
-
-        selectChild(child) {
-            const parent = this.hoveredParent || this.findParentByChildValue(this.getValue(child));
-            if (parent) {
-                this.selectedText = this.getLabel(parent) + ' / ' + this.getLabel(child);
-            } else {
-                this.selectedText = this.getLabel(child);
-            }
-            this.selectedValue = this.getValue(child);
-            this.hoveredParent = null;
-            this.hoveredParentValue = null;
-            this.search = '';
-            this.open = false;
-            this.$refs.desktopDialog?.close();
-        },
-
-        selectSearchResult(result) {
-            if (result._isParent) {
-                this.selectedValue = this.getValue(result);
-                this.selectedText = this.getLabel(result);
-            } else {
-                this.selectedValue = this.getValue(result);
-                this.selectedText = result._parentLabel + ' / ' + this.getLabel(result);
-            }
-            this.hoveredParent = null;
-            this.hoveredParentValue = null;
-            this.search = '';
-            this.open = false;
-            this.$refs.desktopDialog?.close();
-        },
-
-        findParentByChildValue(value) {
-            if (!value) return null;
-            for (const parent of this.options) {
-                if (this.getValue(parent) === value) return parent;
-                if (parent.children) {
-                    const child = parent.children.find(c => this.getValue(c) === value);
-                    if (child) return parent;
+        /**
+         * Select an option on mobile.
+         */
+        mobileSelectOption(option) {
+            if (this.hasChildren(option)) {
+                // Navigate deeper
+                this.mobilePath = this.mobilePath.slice(0, this.mobileLevel);
+                this.mobilePath.push(option);
+                this.mobileLevel++;
+            } else if (this.multiple) {
+                // Toggle checkbox
+                const value = this.getValue(option);
+                if (!Array.isArray(this.tempSelectedValue)) {
+                    this.tempSelectedValue = this.tempSelectedValue ? [this.tempSelectedValue] : [];
                 }
+                const index = this.tempSelectedValue.indexOf(value);
+                if (index > -1) {
+                    this.tempSelectedValue = this.tempSelectedValue.filter(v => v !== value);
+                } else {
+                    this.tempSelectedValue = [...this.tempSelectedValue, value];
+                }
+            } else {
+                // Select leaf option
+                const pathLabels = [...this.mobilePath.map(p => this.getLabel(p)), this.getLabel(option)];
+                this.tempSelectedValue = this.getValue(option);
+                this.tempSelectedText = pathLabels.join(' / ');
             }
-            return null;
+        },
+
+        /**
+         * Navigate to a specific level via breadcrumb.
+         */
+        mobileGoToLevel(level) {
+            this.mobileLevel = level;
+            this.mobilePath = this.mobilePath.slice(0, level);
+        },
+
+        /**
+         * Check if an option is selected in mobile temp state.
+         */
+        isMobileTempSelected(option) {
+            const value = this.getValue(option);
+            if (this.multiple) {
+                return Array.isArray(this.tempSelectedValue) && this.tempSelectedValue.includes(value);
+            }
+            return this.tempSelectedValue === value;
         },
 
         clearSearch() {
@@ -292,11 +483,18 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         clear() {
-            this.selectedValue = null;
+            this.selectedValue = this.multiple ? [] : null;
             this.selectedText = null;
-            this.hoveredParent = null;
-            this.hoveredParentValue = null;
+            this.levels = [];
             this.search = '';
+        },
+
+        /**
+         * Get the count of selected items (for multi-select display).
+         */
+        get selectedCount() {
+            if (!this.multiple || !this.selectedValue) return 0;
+            return Array.isArray(this.selectedValue) ? this.selectedValue.length : 0;
         }
     };
 }

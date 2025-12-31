@@ -37,7 +37,7 @@ By default, the component uses `id` for values and `name` for labels. You can cu
 
 ### Options Format
 
-The `options` array should be structured with parent items containing a `children` array:
+The `options` array should be structured with parent items containing a `children` array. The component supports unlimited nesting depth:
 
 ```php
 $categories = [
@@ -47,7 +47,16 @@ $categories = [
         'icon' => 'laptop',      // FontAwesome icon (optional)
         'color' => '#3B82F6',    // Color for icon background (optional)
         'children' => [
-            ['id' => 11, 'name' => 'Phones', 'icon' => 'mobile', 'color' => '#3B82F6'],
+            [
+                'id' => 11,
+                'name' => 'Phones',
+                'icon' => 'mobile',
+                'color' => '#3B82F6',
+                'children' => [  // Unlimited nesting depth
+                    ['id' => 111, 'name' => 'iPhone', 'icon' => 'apple', 'color' => '#3B82F6'],
+                    ['id' => 112, 'name' => 'Android', 'icon' => 'android', 'color' => '#3B82F6'],
+                ],
+            ],
             ['id' => 12, 'name' => 'Tablets', 'icon' => 'tablet', 'color' => '#3B82F6'],
         ],
     ],
@@ -70,6 +79,25 @@ $categories = [
     ],
 ];
 ```
+
+### Multi-Select with Checkboxes
+
+Enable multi-select mode to allow selecting multiple leaf items with checkboxes:
+
+```blade
+<x-cascader
+    :options="$categories"
+    wire:model="selected_ids"
+    :multiple="true"
+    placeholder="Select categories"
+/>
+```
+
+In multi-select mode:
+- Only leaf nodes (items without children) can be selected
+- Selected values are stored as an array
+- The display shows "X selected" where X is the count
+- Checkboxes appear next to selectable items
 
 ### Alpine.js Component
 
@@ -207,20 +235,23 @@ php artisan vendor:publish --tag=cascader-scripts
 
 ## Features
 
-- Two-column cascading dropdown (desktop)
-- **Mobile-friendly bottom sheet** with step-by-step navigation
-- **Search/filter** through all options
+- **Unlimited nesting depth** - Support for multi-level hierarchies (not just parent/child)
+- **Multi-select mode** with checkboxes for selecting multiple items
+- Multi-column cascading dropdown (desktop) - columns appear dynamically as you navigate
+- **Mobile-friendly bottom sheet** with breadcrumb navigation
+- **Search/filter** through all levels of options
 - Hover to preview children
 - Click to select
 - **Clearable** selection with optional clear button
 - **Flexible icon resolver** (FontAwesome, Heroicons, Blade Icons, or custom)
-- Selected value shows "Parent / Child" format
+- Selected value shows full path (e.g., "Electronics / Phones / iPhone")
 - Auto-closes on selection or outside click
 - Keyboard support (Escape to close)
 - Works with Livewire's wire:model
 - Configurable value and label fields
 - Customizable search placeholder
 - Customizable Cancel/Confirm button text (mobile)
+- Dark mode support
 
 ## Requirements
 
