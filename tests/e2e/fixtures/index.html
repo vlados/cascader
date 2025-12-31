@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cascader E2E Tests</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="p-8 bg-gray-100">
+    <h1 class="text-2xl font-bold mb-8">Cascader E2E Test Fixtures</h1>
+
+    <div class="space-y-8">
+        <!-- Basic Single Select Cascader -->
+        <div id="basic-cascader" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-4">Basic Single Select</h2>
+            <div
+                x-data="cascader({
+                    options: [
+                        {
+                            id: 1,
+                            name: 'Electronics',
+                            children: [
+                                {
+                                    id: 11,
+                                    name: 'Phones',
+                                    children: [
+                                        { id: 111, name: 'iPhone' },
+                                        { id: 112, name: 'Android' }
+                                    ]
+                                },
+                                { id: 12, name: 'Tablets' }
+                            ]
+                        },
+                        {
+                            id: 2,
+                            name: 'Clothing',
+                            children: [
+                                { id: 21, name: 'Men' },
+                                { id: 22, name: 'Women' }
+                            ]
+                        },
+                        {
+                            id: 3,
+                            name: 'Other',
+                            children: []
+                        }
+                    ],
+                    selectedValue: null,
+                    valueField: 'id',
+                    labelField: 'name',
+                    multiple: false
+                })"
+                x-ref="cascaderRoot"
+                class="relative w-64"
+            >
+                <!-- Trigger Button -->
+                <button
+                    type="button"
+                    data-testid="cascader-trigger"
+                    @click="openCascader()"
+                    class="w-full h-10 px-3 py-2 text-left bg-white border border-zinc-200 rounded-lg shadow-xs text-zinc-700 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                >
+                    <span x-show="!selectedText" class="text-zinc-400">Select category</span>
+                    <span x-show="selectedText" x-text="selectedText" data-testid="selected-text"></span>
+                </button>
+
+                <!-- Desktop Dialog -->
+                <dialog
+                    x-ref="desktopDialog"
+                    @close="open = false; search = '';"
+                    @click="if ($event.target === $el) { $el.close(); }"
+                    class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
+                    :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
+                    data-testid="desktop-dialog"
+                >
+                    <div class="bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+                        <!-- Search -->
+                        <div class="p-2 border-b border-zinc-100">
+                            <input
+                                type="text"
+                                x-model="search"
+                                x-ref="searchInput"
+                                placeholder="Search..."
+                                class="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-md"
+                                data-testid="search-input"
+                            />
+                        </div>
+
+                        <!-- Search Results -->
+                        <div x-show="isSearching" class="max-h-72 overflow-y-auto" data-testid="search-results">
+                            <template x-for="result in searchResults" :key="getValue(result) + '-search'">
+                                <button
+                                    type="button"
+                                    @click="selectSearchResult(result)"
+                                    class="w-full px-3 py-2.5 text-left text-sm hover:bg-zinc-50"
+                                    data-testid="search-result"
+                                >
+                                    <span x-text="result._pathLabels.join(' / ')"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- Columns -->
+                        <div x-show="!isSearching" class="flex max-h-72 overflow-x-auto" data-testid="columns-container">
+                            <template x-for="(level, levelIndex) in columnCount" :key="'level-' + levelIndex">
+                                <div
+                                    class="min-w-[180px] max-h-72 overflow-y-auto border-r border-zinc-100 last:border-r-0"
+                                    x-show="getOptionsForLevel(levelIndex).length > 0"
+                                    :data-testid="'column-' + levelIndex"
+                                >
+                                    <template x-for="option in getOptionsForLevel(levelIndex)" :key="getValue(option)">
+                                        <button
+                                            type="button"
+                                            @click="navigateToOption(option, levelIndex)"
+                                            @mouseenter="hasChildren(option) ? navigateToOption(option, levelIndex) : null"
+                                            class="w-full flex items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-50"
+                                            :class="{
+                                                'bg-zinc-100 font-medium': isOptionActive(option, levelIndex),
+                                                'bg-teal-50': isOptionSelected(option)
+                                            }"
+                                            :data-testid="'option-' + getValue(option)"
+                                        >
+                                            <span x-text="getLabel(option)"></span>
+                                            <svg x-show="hasChildren(option)" class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                            </svg>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </dialog>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Selected Value: <span data-testid="selected-value" x-text="JSON.stringify(selectedValue)"></span>
+            </div>
+        </div>
+
+        <!-- Multi-Select Cascader -->
+        <div id="multi-cascader" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-4">Multi-Select with Checkboxes</h2>
+            <div
+                x-data="cascader({
+                    options: [
+                        {
+                            id: 1,
+                            name: 'Fruits',
+                            children: [
+                                { id: 11, name: 'Apple' },
+                                { id: 12, name: 'Banana' },
+                                { id: 13, name: 'Orange' }
+                            ]
+                        },
+                        {
+                            id: 2,
+                            name: 'Vegetables',
+                            children: [
+                                { id: 21, name: 'Carrot' },
+                                { id: 22, name: 'Broccoli' }
+                            ]
+                        }
+                    ],
+                    selectedValue: [],
+                    valueField: 'id',
+                    labelField: 'name',
+                    multiple: true
+                })"
+                x-ref="cascaderRoot"
+                class="relative w-64"
+            >
+                <button
+                    type="button"
+                    data-testid="multi-cascader-trigger"
+                    @click="openCascader()"
+                    class="w-full h-10 px-3 py-2 text-left bg-white border border-zinc-200 rounded-lg shadow-xs text-zinc-700"
+                >
+                    <span x-show="!selectedText" class="text-zinc-400">Select items</span>
+                    <span x-show="selectedText" x-text="selectedText" data-testid="multi-selected-text"></span>
+                </button>
+
+                <dialog
+                    x-ref="desktopDialog"
+                    @close="open = false; search = '';"
+                    class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
+                    :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
+                    data-testid="multi-desktop-dialog"
+                >
+                    <div class="bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+                        <div class="p-2 border-b border-zinc-100">
+                            <input
+                                type="text"
+                                x-model="search"
+                                x-ref="searchInput"
+                                placeholder="Search..."
+                                class="w-full px-3 py-1.5 text-sm border border-zinc-200 rounded-md"
+                                data-testid="multi-search-input"
+                            />
+                        </div>
+
+                        <div x-show="!isSearching" class="flex max-h-72 overflow-x-auto" data-testid="multi-columns-container">
+                            <template x-for="(level, levelIndex) in columnCount" :key="'level-' + levelIndex">
+                                <div
+                                    class="min-w-[180px] max-h-72 overflow-y-auto border-r border-zinc-100 last:border-r-0"
+                                    x-show="getOptionsForLevel(levelIndex).length > 0"
+                                >
+                                    <template x-for="option in getOptionsForLevel(levelIndex)" :key="getValue(option)">
+                                        <button
+                                            type="button"
+                                            @click="hasChildren(option) ? navigateToOption(option, levelIndex) : toggleCheckbox(option, levelIndex)"
+                                            @mouseenter="hasChildren(option) ? navigateToOption(option, levelIndex) : null"
+                                            class="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50"
+                                            :data-testid="'multi-option-' + getValue(option)"
+                                        >
+                                            <!-- Checkbox for leaf nodes -->
+                                            <template x-if="!hasChildren(option)">
+                                                <span
+                                                    class="flex items-center justify-center size-4 border rounded shrink-0"
+                                                    :class="isOptionSelected(option) ? 'bg-teal-500 border-teal-500' : 'border-zinc-300'"
+                                                    data-testid="checkbox"
+                                                >
+                                                    <svg x-show="isOptionSelected(option)" class="size-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                    </svg>
+                                                </span>
+                                            </template>
+                                            <span x-text="getLabel(option)"></span>
+                                            <svg x-show="hasChildren(option)" class="size-4 text-zinc-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                            </svg>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </dialog>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Selected Values: <span data-testid="multi-selected-value" x-text="JSON.stringify(selectedValue)"></span>
+            </div>
+        </div>
+
+        <!-- Deep Nesting Cascader -->
+        <div id="deep-cascader" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-4">Deep Nesting (5 Levels)</h2>
+            <div
+                x-data="cascader({
+                    options: [
+                        {
+                            id: 1,
+                            name: 'Level 1',
+                            children: [
+                                {
+                                    id: 2,
+                                    name: 'Level 2',
+                                    children: [
+                                        {
+                                            id: 3,
+                                            name: 'Level 3',
+                                            children: [
+                                                {
+                                                    id: 4,
+                                                    name: 'Level 4',
+                                                    children: [
+                                                        { id: 5, name: 'Level 5 Leaf' }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    selectedValue: null,
+                    valueField: 'id',
+                    labelField: 'name',
+                    multiple: false
+                })"
+                x-ref="cascaderRoot"
+                class="relative w-64"
+            >
+                <button
+                    type="button"
+                    data-testid="deep-cascader-trigger"
+                    @click="openCascader()"
+                    class="w-full h-10 px-3 py-2 text-left bg-white border border-zinc-200 rounded-lg shadow-xs text-zinc-700"
+                >
+                    <span x-show="!selectedText" class="text-zinc-400">Select deep option</span>
+                    <span x-show="selectedText" x-text="selectedText" data-testid="deep-selected-text"></span>
+                </button>
+
+                <dialog
+                    x-ref="desktopDialog"
+                    @close="open = false; search = '';"
+                    class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
+                    :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
+                    data-testid="deep-desktop-dialog"
+                >
+                    <div class="bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+                        <div class="flex max-h-72 overflow-x-auto" data-testid="deep-columns-container">
+                            <template x-for="(level, levelIndex) in columnCount" :key="'level-' + levelIndex">
+                                <div
+                                    class="min-w-[180px] max-h-72 overflow-y-auto border-r border-zinc-100 last:border-r-0"
+                                    x-show="getOptionsForLevel(levelIndex).length > 0"
+                                    :data-testid="'deep-column-' + levelIndex"
+                                >
+                                    <template x-for="option in getOptionsForLevel(levelIndex)" :key="getValue(option)">
+                                        <button
+                                            type="button"
+                                            @click="navigateToOption(option, levelIndex)"
+                                            @mouseenter="hasChildren(option) ? navigateToOption(option, levelIndex) : null"
+                                            class="w-full flex items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-50"
+                                            :class="{ 'bg-zinc-100': isOptionActive(option, levelIndex) }"
+                                            :data-testid="'deep-option-' + getValue(option)"
+                                        >
+                                            <span x-text="getLabel(option)"></span>
+                                            <svg x-show="hasChildren(option)" class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                            </svg>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </dialog>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Selected Value: <span data-testid="deep-selected-value" x-text="JSON.stringify(selectedValue)"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the cascader component -->
+    <script type="module">
+        // Inline the cascader component for testing
+        function cascader({
+            options,
+            selectedValue,
+            initialText,
+            valueField = 'id',
+            labelField = 'name',
+            multiple = false
+        }) {
+            return {
+                options: options || [],
+                selectedValue: selectedValue,
+                selectedText: initialText || null,
+                valueField: valueField,
+                labelField: labelField,
+                multiple: multiple,
+                open: false,
+                search: '',
+                levels: [],
+                isMobile: false,
+                mobileLevel: 0,
+                mobilePath: [],
+                tempSelectedValue: null,
+                tempSelectedText: null,
+                dropdownPosition: { top: 0, left: 0, width: 0 },
+
+                init() {
+                    this.checkMobile();
+                    window.addEventListener('resize', () => {
+                        this.checkMobile();
+                        if (this.open && !this.isMobile) {
+                            this.updateDropdownPosition();
+                        }
+                    });
+                    if (this.selectedValue && !this.selectedText) {
+                        this.updateSelectedTextFromValue();
+                    }
+                },
+
+                updateDropdownPosition() {
+                    const root = this.$refs.cascaderRoot;
+                    if (!root) return;
+                    const rect = root.getBoundingClientRect();
+                    this.dropdownPosition = {
+                        top: rect.bottom + 4,
+                        left: rect.left,
+                        width: rect.width
+                    };
+                },
+
+                checkMobile() {
+                    this.isMobile = window.innerWidth < 640;
+                },
+
+                getValue(item) {
+                    return item?.[this.valueField];
+                },
+
+                getLabel(item) {
+                    return item?.label || item?.[this.labelField];
+                },
+
+                hasChildren(item) {
+                    return item?.children && item.children.length > 0;
+                },
+
+                get isSearching() {
+                    return this.search.trim().length > 0;
+                },
+
+                get searchResults() {
+                    if (!this.isSearching) return [];
+                    const query = this.search.toLowerCase().trim();
+                    const results = [];
+                    const searchRecursive = (items, path = []) => {
+                        for (const item of items) {
+                            const currentPath = [...path, item];
+                            const label = this.getLabel(item).toLowerCase();
+                            if (label.includes(query)) {
+                                results.push({
+                                    ...item,
+                                    _path: currentPath,
+                                    _pathLabels: currentPath.map(p => this.getLabel(p)),
+                                    _isLeaf: !this.hasChildren(item)
+                                });
+                            }
+                            if (this.hasChildren(item)) {
+                                searchRecursive(item.children, currentPath);
+                            }
+                        }
+                    };
+                    searchRecursive(this.options);
+                    return results;
+                },
+
+                getOptionsForLevel(level) {
+                    if (level === 0) return this.options;
+                    const parentOption = this.levels[level - 1];
+                    return parentOption?.children || [];
+                },
+
+                get columnCount() {
+                    let count = 1;
+                    for (let i = 0; i < this.levels.length; i++) {
+                        if (this.levels[i] && this.hasChildren(this.levels[i])) {
+                            count++;
+                        }
+                    }
+                    return count;
+                },
+
+                isOptionActive(option, level) {
+                    return this.levels[level] && this.getValue(this.levels[level]) === this.getValue(option);
+                },
+
+                isOptionSelected(option) {
+                    if (this.multiple) {
+                        return this.isValueSelected(this.getValue(option));
+                    }
+                    return this.selectedValue === this.getValue(option);
+                },
+
+                isValueSelected(value) {
+                    if (!this.multiple || !this.selectedValue) return false;
+                    return Array.isArray(this.selectedValue) && this.selectedValue.includes(value);
+                },
+
+                navigateToOption(option, level) {
+                    this.levels = this.levels.slice(0, level);
+                    this.levels[level] = option;
+                    if (!this.hasChildren(option) && !this.multiple) {
+                        this.selectOption(option, level);
+                    }
+                },
+
+                selectOption(option, level) {
+                    const pathLabels = [];
+                    for (let i = 0; i <= level; i++) {
+                        if (this.levels[i]) {
+                            pathLabels.push(this.getLabel(this.levels[i]));
+                        }
+                    }
+                    this.selectedValue = this.getValue(option);
+                    this.selectedText = pathLabels.join(' / ');
+                    this.closeCascader();
+                },
+
+                toggleCheckbox(option, level) {
+                    if (!this.multiple) return;
+                    const value = this.getValue(option);
+                    if (!Array.isArray(this.selectedValue)) {
+                        this.selectedValue = this.selectedValue ? [this.selectedValue] : [];
+                    }
+                    const index = this.selectedValue.indexOf(value);
+                    if (index > -1) {
+                        this.selectedValue = this.selectedValue.filter(v => v !== value);
+                    } else {
+                        this.selectedValue = [...this.selectedValue, value];
+                    }
+                    this.updateMultiSelectText();
+                },
+
+                updateMultiSelectText() {
+                    if (!this.multiple || !this.selectedValue || !Array.isArray(this.selectedValue)) {
+                        this.selectedText = null;
+                        return;
+                    }
+                    if (this.selectedValue.length === 0) {
+                        this.selectedText = null;
+                        return;
+                    }
+                    this.selectedText = `${this.selectedValue.length} selected`;
+                },
+
+                updateSelectedTextFromValue() {
+                    if (this.multiple) {
+                        this.updateMultiSelectText();
+                        return;
+                    }
+                    if (!this.selectedValue) {
+                        this.selectedText = null;
+                        return;
+                    }
+                    const findPath = (items, targetValue, path = []) => {
+                        for (const item of items) {
+                            const currentPath = [...path, this.getLabel(item)];
+                            if (this.getValue(item) === targetValue) {
+                                return currentPath;
+                            }
+                            if (this.hasChildren(item)) {
+                                const found = findPath(item.children, targetValue, currentPath);
+                                if (found) return found;
+                            }
+                        }
+                        return null;
+                    };
+                    const path = findPath(this.options, this.selectedValue);
+                    this.selectedText = path ? path.join(' / ') : null;
+                },
+
+                selectSearchResult(result) {
+                    if (this.multiple) {
+                        const value = this.getValue(result);
+                        if (!Array.isArray(this.selectedValue)) {
+                            this.selectedValue = this.selectedValue ? [this.selectedValue] : [];
+                        }
+                        const index = this.selectedValue.indexOf(value);
+                        if (index > -1) {
+                            this.selectedValue = this.selectedValue.filter(v => v !== value);
+                        } else {
+                            this.selectedValue = [...this.selectedValue, value];
+                        }
+                        this.updateMultiSelectText();
+                    } else {
+                        this.selectedValue = this.getValue(result);
+                        this.selectedText = result._pathLabels.join(' / ');
+                        this.closeCascader();
+                    }
+                },
+
+                findPathToValue(value, items = null, path = []) {
+                    items = items || this.options;
+                    for (const item of items) {
+                        const currentPath = [...path, item];
+                        if (this.getValue(item) === value) {
+                            return currentPath;
+                        }
+                        if (this.hasChildren(item)) {
+                            const found = this.findPathToValue(value, item.children, currentPath);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                },
+
+                openCascader() {
+                    this.open = true;
+                    this.levels = [];
+                    if (this.selectedValue && !this.multiple) {
+                        const path = this.findPathToValue(this.selectedValue);
+                        if (path) {
+                            this.levels = path;
+                        }
+                    }
+                    this.$nextTick(() => {
+                        this.updateDropdownPosition();
+                        this.$refs.desktopDialog?.showModal();
+                        this.$refs.searchInput?.focus();
+                    });
+                },
+
+                closeCascader() {
+                    this.open = false;
+                    this.search = '';
+                    this.levels = [];
+                    this.$refs.desktopDialog?.close();
+                },
+
+                clear() {
+                    this.selectedValue = this.multiple ? [] : null;
+                    this.selectedText = null;
+                    this.levels = [];
+                    this.search = '';
+                },
+
+                get selectedCount() {
+                    if (!this.multiple || !this.selectedValue) return 0;
+                    return Array.isArray(this.selectedValue) ? this.selectedValue.length : 0;
+                }
+            };
+        }
+
+        // Register with Alpine
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('cascader', cascader);
+        });
+    </script>
+</body>
+</html>

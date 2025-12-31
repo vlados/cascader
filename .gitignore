@@ -1,4 +1,9 @@
 /vendor/
+/node_modules/
 /.idea/
 .phpunit.result.cache
+.phpunit.cache/
 .DS_Store
+coverage/
+.env
+*.log

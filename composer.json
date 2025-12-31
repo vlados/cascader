@@ -14,9 +14,19 @@
         "illuminate/support": "^11.0|^12.0",
         "livewire/livewire": "^3.0"
     },
+    "require-dev": {
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0",
+        "orchestra/testbench": "^9.0|^10.0"
+    },
     "autoload": {
         "psr-4": {
             "Vlados\\Cascader\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Vlados\\Cascader\\Tests\\": "tests/"
         }
     },
     "extra": {
@@ -24,6 +34,15 @@
             "providers": [
                 "Vlados\\Cascader\\CascaderServiceProvider"
             ]
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "test:coverage": "pest --coverage"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
         }
     },
     "minimum-stability": "dev",
