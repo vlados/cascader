@@ -5,11 +5,12 @@
  * Supports desktop (two-column) and mobile (bottom sheet) views.
  */
 
-export function cascader({ options, selectedValue, initialText, valueField = 'id', labelField = 'name' }) {
+export function cascader({ options, modelValue = null, selectedValue = null, initialText = null, valueField = 'id', labelField = 'name' }) {
     return {
         options: options || [],
-        selectedValue: selectedValue,
-        selectedText: initialText,
+        // `selectedValue` is the pre-0.5 name of this param, kept as an alias.
+        modelValue: modelValue ?? selectedValue,
+        selectedText: initialText ?? null,
         valueField: valueField,
         labelField: labelField,
         open: false,
@@ -22,24 +23,49 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         mobileLevel: 0, // 0 = parents, 1 = children
         mobileSelectedParent: null,
         tempSelectedValue: null,
-        tempSelectedText: null,
 
         // Dropdown position for teleported element
         dropdownPosition: { top: 0, left: 0, width: 0 },
 
         init() {
-            this.checkMobile();
-            window.addEventListener('resize', () => {
-                this.checkMobile();
-                if (this.open && !this.isMobile) {
-                    this.updateDropdownPosition();
-                }
+            if (!this.selectedText) {
+                this.selectedText = this.labelForValue(this.modelValue);
+            }
+
+            // Keeps the trigger label in sync with external changes too
+            // (e.g. Livewire updating the property server-side).
+            this.$watch('modelValue', (value) => {
+                this.selectedText = this.labelForValue(value);
             });
-            window.addEventListener('scroll', () => {
+
+            this.checkMobile();
+            this._onWindowResize = () => {
+                const wasMobile = this.isMobile;
+                this.checkMobile();
+
+                // Crossing the breakpoint while open would leave the wrong
+                // dialog showing — close and let the user reopen.
+                if (this.open && this.isMobile !== wasMobile) {
+                    this.closeCascader();
+                    return;
+                }
+
                 if (this.open && !this.isMobile) {
                     this.updateDropdownPosition();
                 }
-            }, true);
+            };
+            this._onWindowScroll = () => {
+                if (this.open && !this.isMobile) {
+                    this.updateDropdownPosition();
+                }
+            };
+            window.addEventListener('resize', this._onWindowResize);
+            window.addEventListener('scroll', this._onWindowScroll, true);
+        },
+
+        destroy() {
+            window.removeEventListener('resize', this._onWindowResize);
+            window.removeEventListener('scroll', this._onWindowScroll, true);
         },
 
         updateDropdownPosition() {
@@ -58,16 +84,63 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             this.isMobile = window.innerWidth < 640; // sm breakpoint
         },
 
+        // Native dialog close (e.g. Escape) bypasses closeCascader(),
+        // so the dialogs' @close handlers reset state through here.
+        onDesktopDialogClose() {
+            this.open = false;
+            this.search = '';
+            this.hoveredParent = null;
+            this.hoveredParentValue = null;
+        },
+
+        iconBackground(color) {
+            const value = color || '#6B7280';
+
+            // The old hex+alpha trick only works for 6-digit hex values;
+            // named colors and rgb()/hsl() go through color-mix() instead.
+            return /^#[0-9a-fA-F]{6}$/.test(value)
+                ? value + '20'
+                : `color-mix(in srgb, ${value} 12%, transparent)`;
+        },
+
         getValue(item) {
             return item?.[this.valueField];
         },
 
         getLabel(item) {
-            return item?.label || item?.[this.labelField];
+            return item?.[this.labelField] ?? item?.label ?? null;
+        },
+
+        // "No selection" means null/undefined/'' — plain falsiness would
+        // reject legitimate values like 0.
+        isEmpty(value) {
+            return value === null || value === undefined || value === '';
+        },
+
+        labelForValue(value) {
+            if (this.isEmpty(value)) return null;
+
+            for (const parent of this.options) {
+                if (this.getValue(parent) === value) {
+                    return this.getLabel(parent);
+                }
+                for (const child of parent.children || []) {
+                    if (this.getValue(child) === value) {
+                        return this.getLabel(parent) + ' / ' + this.getLabel(child);
+                    }
+                }
+            }
+
+            return null;
         },
 
         get isSearching() {
             return this.search.trim().length > 0;
+        },
+
+        matchesQuery(item, query) {
+            const label = this.getLabel(item);
+            return label !== null && String(label).toLowerCase().includes(query);
         },
 
         get searchResults() {
@@ -77,24 +150,31 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             const results = [];
 
             for (const parent of this.options) {
-                if (this.getLabel(parent).toLowerCase().includes(query)) {
-                    results.push({
-                        ...parent,
-                        _isParent: true,
-                        _parentLabel: null
-                    });
+                const children = parent.children || [];
+
+                // Only leaves are selectable, so parents with children are
+                // represented by their child paths — matching a parent lists
+                // all of its children, same as the normal view's rules.
+                if (children.length === 0) {
+                    if (this.matchesQuery(parent, query)) {
+                        results.push({
+                            ...parent,
+                            _isParent: true,
+                            _parentLabel: null
+                        });
+                    }
+                    continue;
                 }
 
-                if (parent.children) {
-                    for (const child of parent.children) {
-                        if (this.getLabel(child).toLowerCase().includes(query)) {
-                            results.push({
-                                ...child,
-                                _isParent: false,
-                                _parentLabel: this.getLabel(parent),
-                                _parent: parent
-                            });
-                        }
+                const parentMatches = this.matchesQuery(parent, query);
+
+                for (const child of children) {
+                    if (parentMatches || this.matchesQuery(child, query)) {
+                        results.push({
+                            ...child,
+                            _isParent: false,
+                            _parentLabel: this.getLabel(parent)
+                        });
                     }
                 }
             }
@@ -103,12 +183,12 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         get currentChildren() {
-            const parent = this.hoveredParent || this.findParentByChildValue(this.selectedValue);
+            const parent = this.hoveredParent || this.findParentByChildValue(this.modelValue);
             return parent?.children || [];
         },
 
         get selectedParentValue() {
-            const parent = this.findParentByChildValue(this.selectedValue);
+            const parent = this.findParentByChildValue(this.modelValue);
             return parent ? this.getValue(parent) : null;
         },
 
@@ -117,9 +197,13 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             return this.mobileSelectedParent?.children || [];
         },
 
+        get hasTempSelection() {
+            return !this.isEmpty(this.tempSelectedValue);
+        },
+
         // Mobile: get label of selected child
         get mobileSelectedChildLabel() {
-            if (!this.mobileSelectedParent || !this.tempSelectedValue) return null;
+            if (!this.mobileSelectedParent || !this.hasTempSelection) return null;
             const child = this.mobileSelectedParent.children?.find(c => this.getValue(c) === this.tempSelectedValue);
             return child ? this.getLabel(child) : null;
         },
@@ -139,15 +223,14 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
                 // Initialize mobile state
                 this.mobileLevel = 0;
                 this.mobileSelectedParent = null;
-                this.tempSelectedValue = this.selectedValue;
-                this.tempSelectedText = this.selectedText;
+                this.tempSelectedValue = this.modelValue;
 
                 // If there's an existing selection, restore the state
-                if (this.selectedValue) {
-                    const parent = this.findParentByChildValue(this.selectedValue);
+                if (!this.isEmpty(this.modelValue)) {
+                    const parent = this.findParentByChildValue(this.modelValue);
                     if (parent) {
                         // Check if selected value is the parent itself
-                        if (this.getValue(parent) === this.selectedValue) {
+                        if (this.getValue(parent) === this.modelValue) {
                             // Parent is selected (no children case)
                             this.mobileSelectedParent = null;
                             this.mobileLevel = 0;
@@ -180,7 +263,6 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
                 this.mobileLevel = 0;
                 this.mobileSelectedParent = null;
                 this.tempSelectedValue = null;
-                this.tempSelectedText = null;
             }
         },
 
@@ -191,9 +273,8 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
 
         // Mobile: confirm selection
         mobileConfirm() {
-            if (this.tempSelectedValue) {
-                this.selectedValue = this.tempSelectedValue;
-                this.selectedText = this.tempSelectedText;
+            if (this.hasTempSelection) {
+                this.modelValue = this.tempSelectedValue;
             }
             this.closeCascader();
         },
@@ -205,7 +286,6 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             if (!hasChildren) {
                 // Parent is a leaf node, select it
                 this.tempSelectedValue = this.getValue(parent);
-                this.tempSelectedText = this.getLabel(parent);
                 this.mobileSelectedParent = null;
             } else {
                 // Parent has children, go to level 1
@@ -217,7 +297,6 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         // Mobile: select a child
         mobileSelectChild(child) {
             this.tempSelectedValue = this.getValue(child);
-            this.tempSelectedText = this.getLabel(this.mobileSelectedParent) + ' / ' + this.getLabel(child);
         },
 
         // Mobile: go back to parents
@@ -235,8 +314,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
             const hasChildren = parent.children && parent.children.length > 0;
 
             if (!hasChildren) {
-                this.selectedValue = this.getValue(parent);
-                this.selectedText = this.getLabel(parent);
+                this.modelValue = this.getValue(parent);
                 this.hoveredParent = null;
                 this.hoveredParentValue = null;
                 this.search = '';
@@ -246,13 +324,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         selectChild(child) {
-            const parent = this.hoveredParent || this.findParentByChildValue(this.getValue(child));
-            if (parent) {
-                this.selectedText = this.getLabel(parent) + ' / ' + this.getLabel(child);
-            } else {
-                this.selectedText = this.getLabel(child);
-            }
-            this.selectedValue = this.getValue(child);
+            this.modelValue = this.getValue(child);
             this.hoveredParent = null;
             this.hoveredParentValue = null;
             this.search = '';
@@ -261,13 +333,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         selectSearchResult(result) {
-            if (result._isParent) {
-                this.selectedValue = this.getValue(result);
-                this.selectedText = this.getLabel(result);
-            } else {
-                this.selectedValue = this.getValue(result);
-                this.selectedText = result._parentLabel + ' / ' + this.getLabel(result);
-            }
+            this.modelValue = this.getValue(result);
             this.hoveredParent = null;
             this.hoveredParentValue = null;
             this.search = '';
@@ -276,7 +342,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         findParentByChildValue(value) {
-            if (!value) return null;
+            if (this.isEmpty(value)) return null;
             for (const parent of this.options) {
                 if (this.getValue(parent) === value) return parent;
                 if (parent.children) {
@@ -292,8 +358,7 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
         },
 
         clear() {
-            this.selectedValue = null;
-            this.selectedText = null;
+            this.modelValue = null;
             this.hoveredParent = null;
             this.hoveredParentValue = null;
             this.search = '';
@@ -301,9 +366,15 @@ export function cascader({ options, selectedValue, initialText, valueField = 'id
     };
 }
 
-// Auto-register if Alpine is available globally
-if (typeof window !== 'undefined' && window.Alpine) {
-    window.Alpine.data('cascader', cascader);
+// Register with Alpine whether it is already started or still loading.
+if (typeof window !== 'undefined') {
+    if (window.Alpine) {
+        window.Alpine.data('cascader', cascader);
+    } else {
+        document.addEventListener('alpine:init', () => {
+            window.Alpine.data('cascader', cascader);
+        });
+    }
 }
 
 export default cascader;
