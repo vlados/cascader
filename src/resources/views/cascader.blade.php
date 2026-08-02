@@ -31,7 +31,7 @@
     $entangleExpression = 'null';
 
     if ($wireModelAttribute->value()) {
-        $entangleExpression = $wireModelAttribute->directive() === 'wire:model.live'
+        $entangleExpression = $wireModelAttribute->hasModifier('live')
             ? "\$wire.entangle('{$wireModelAttribute->value()}').live"
             : "\$wire.entangle('{$wireModelAttribute->value()}')";
     } elseif ($wireModel) {
@@ -49,7 +49,7 @@
         labelField: {{ Js::from($labelField) }}
     })"
     x-ref="cascaderRoot"
-    {{ $attributes->except(['wire:model', 'wire:model.live', 'wire:model.blur', 'wire:model.debounce'])->merge(['class' => 'relative']) }}
+    {{ $attributes->whereDoesntStartWith('wire:model')->merge(['class' => 'relative']) }}
 >
     {{-- Trigger Button --}}
     <div class="relative">
