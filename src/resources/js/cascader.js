@@ -73,11 +73,17 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
         },
 
         getLabel(item) {
-            return item?.label || item?.[this.labelField];
+            return item?.[this.labelField] ?? item?.label ?? null;
+        },
+
+        // "No selection" means null/undefined/'' — plain falsiness would
+        // reject legitimate values like 0.
+        isEmpty(value) {
+            return value === null || value === undefined || value === '';
         },
 
         labelForValue(value) {
-            if (!value) return null;
+            if (this.isEmpty(value)) return null;
 
             for (const parent of this.options) {
                 if (this.getValue(parent) === value) {
@@ -97,6 +103,11 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
             return this.search.trim().length > 0;
         },
 
+        matchesQuery(item, query) {
+            const label = this.getLabel(item);
+            return label !== null && String(label).toLowerCase().includes(query);
+        },
+
         get searchResults() {
             if (!this.isSearching) return [];
 
@@ -104,7 +115,7 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
             const results = [];
 
             for (const parent of this.options) {
-                if (this.getLabel(parent).toLowerCase().includes(query)) {
+                if (this.matchesQuery(parent, query)) {
                     results.push({
                         ...parent,
                         _isParent: true,
@@ -114,7 +125,7 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
 
                 if (parent.children) {
                     for (const child of parent.children) {
-                        if (this.getLabel(child).toLowerCase().includes(query)) {
+                        if (this.matchesQuery(child, query)) {
                             results.push({
                                 ...child,
                                 _isParent: false,
@@ -144,9 +155,13 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
             return this.mobileSelectedParent?.children || [];
         },
 
+        get hasTempSelection() {
+            return !this.isEmpty(this.tempSelectedValue);
+        },
+
         // Mobile: get label of selected child
         get mobileSelectedChildLabel() {
-            if (!this.mobileSelectedParent || !this.tempSelectedValue) return null;
+            if (!this.mobileSelectedParent || !this.hasTempSelection) return null;
             const child = this.mobileSelectedParent.children?.find(c => this.getValue(c) === this.tempSelectedValue);
             return child ? this.getLabel(child) : null;
         },
@@ -169,7 +184,7 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
                 this.tempSelectedValue = this.modelValue;
 
                 // If there's an existing selection, restore the state
-                if (this.modelValue) {
+                if (!this.isEmpty(this.modelValue)) {
                     const parent = this.findParentByChildValue(this.modelValue);
                     if (parent) {
                         // Check if selected value is the parent itself
@@ -216,7 +231,7 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
 
         // Mobile: confirm selection
         mobileConfirm() {
-            if (this.tempSelectedValue) {
+            if (this.hasTempSelection) {
                 this.modelValue = this.tempSelectedValue;
             }
             this.closeCascader();
@@ -285,7 +300,7 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
         },
 
         findParentByChildValue(value) {
-            if (!value) return null;
+            if (this.isEmpty(value)) return null;
             for (const parent of this.options) {
                 if (this.getValue(parent) === value) return parent;
                 if (parent.children) {

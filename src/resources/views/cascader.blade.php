@@ -252,8 +252,8 @@
                         type="button"
                         @click="mobileConfirm()"
                         class="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-md transition-colors"
-                        :class="tempSelectedValue ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'"
-                        :disabled="!tempSelectedValue"
+                        :class="hasTempSelection ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'"
+                        :disabled="!hasTempSelection"
                     >
                         {{ $confirmText }}
                     </button>
@@ -275,7 +275,7 @@
                         ></button>
                     </template>
                     {{-- Child tab (when child is selected) --}}
-                    <template x-if="mobileSelectedParent && tempSelectedValue && tempSelectedValue !== getValue(mobileSelectedParent)">
+                    <template x-if="mobileSelectedParent && hasTempSelection && tempSelectedValue !== getValue(mobileSelectedParent)">
                         <div class="flex items-center gap-1">
                             <svg class="size-4 text-zinc-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
