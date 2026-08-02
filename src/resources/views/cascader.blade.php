@@ -124,7 +124,7 @@
                         No results found
                     </div>
                 </template>
-                <template x-for="result in searchResults" :key="getValue(result) + (result._isParent ? '-parent' : '-child')">
+                <template x-for="result in searchResults" :key="(result._isParent ? 'p:' : 'c:' + result._parentLabel + ':') + getValue(result)">
                     <button
                         type="button"
                         @click="selectSearchResult(result)"

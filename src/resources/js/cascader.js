@@ -115,24 +115,31 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
             const results = [];
 
             for (const parent of this.options) {
-                if (this.matchesQuery(parent, query)) {
-                    results.push({
-                        ...parent,
-                        _isParent: true,
-                        _parentLabel: null
-                    });
+                const children = parent.children || [];
+
+                // Only leaves are selectable, so parents with children are
+                // represented by their child paths — matching a parent lists
+                // all of its children, same as the normal view's rules.
+                if (children.length === 0) {
+                    if (this.matchesQuery(parent, query)) {
+                        results.push({
+                            ...parent,
+                            _isParent: true,
+                            _parentLabel: null
+                        });
+                    }
+                    continue;
                 }
 
-                if (parent.children) {
-                    for (const child of parent.children) {
-                        if (this.matchesQuery(child, query)) {
-                            results.push({
-                                ...child,
-                                _isParent: false,
-                                _parentLabel: this.getLabel(parent),
-                                _parent: parent
-                            });
-                        }
+                const parentMatches = this.matchesQuery(parent, query);
+
+                for (const child of children) {
+                    if (parentMatches || this.matchesQuery(child, query)) {
+                        results.push({
+                            ...child,
+                            _isParent: false,
+                            _parentLabel: this.getLabel(parent)
+                        });
                     }
                 }
             }
