@@ -83,7 +83,7 @@
     {{-- Desktop Dropdown (using dialog for top-layer stacking) --}}
     <dialog
         x-ref="desktopDialog"
-        @close="open = false; search = '';"
+        @close="onDesktopDialogClose()"
         @click="if ($event.target === $el) { $el.close(); }"
         class="m-0 p-0 border-0 bg-transparent overflow-visible backdrop:bg-transparent"
         :style="`position: fixed; top: ${dropdownPosition.top}px; left: ${dropdownPosition.left}px; min-width: ${dropdownPosition.width}px;`"
@@ -137,7 +137,7 @@
                         <template x-if="result.iconHtml">
                             <span
                                 class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
-                                :style="'background-color: ' + (result.color || '#6B7280') + '20'"
+                                :style="{ backgroundColor: iconBackground(result.color) }"
                                 x-html="result.iconHtml"
                             ></span>
                         </template>
@@ -170,7 +170,7 @@
                                 <template x-if="parent.iconHtml">
                                     <span
                                         class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
-                                        :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
+                                        :style="{ backgroundColor: iconBackground(parent.color) }"
                                         x-html="parent.iconHtml"
                                     ></span>
                                 </template>
@@ -205,7 +205,7 @@
                                 <template x-if="child.iconHtml">
                                     <span
                                         class="inline-flex items-center justify-center size-6 rounded-full shrink-0"
-                                        :style="'background-color: ' + (child.color || '#6B7280') + '20'"
+                                        :style="{ backgroundColor: iconBackground(child.color) }"
                                         x-html="child.iconHtml"
                                     ></span>
                                 </template>
@@ -306,7 +306,7 @@
                                     <template x-if="parent.iconHtml">
                                         <span
                                             class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
-                                            :style="'background-color: ' + (parent.color || '#6B7280') + '20'"
+                                            :style="{ backgroundColor: iconBackground(parent.color) }"
                                             x-html="parent.iconHtml"
                                         ></span>
                                     </template>
@@ -342,7 +342,7 @@
                                     <template x-if="child.iconHtml">
                                         <span
                                             class="inline-flex items-center justify-center size-8 rounded-full shrink-0"
-                                            :style="'background-color: ' + (child.color || '#6B7280') + '20'"
+                                            :style="{ backgroundColor: iconBackground(child.color) }"
                                             x-html="child.iconHtml"
                                         ></span>
                                     </template>

@@ -40,7 +40,16 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
 
             this.checkMobile();
             this._onWindowResize = () => {
+                const wasMobile = this.isMobile;
                 this.checkMobile();
+
+                // Crossing the breakpoint while open would leave the wrong
+                // dialog showing — close and let the user reopen.
+                if (this.open && this.isMobile !== wasMobile) {
+                    this.closeCascader();
+                    return;
+                }
+
                 if (this.open && !this.isMobile) {
                     this.updateDropdownPosition();
                 }
@@ -73,6 +82,25 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
 
         checkMobile() {
             this.isMobile = window.innerWidth < 640; // sm breakpoint
+        },
+
+        // Native dialog close (e.g. Escape) bypasses closeCascader(),
+        // so the dialogs' @close handlers reset state through here.
+        onDesktopDialogClose() {
+            this.open = false;
+            this.search = '';
+            this.hoveredParent = null;
+            this.hoveredParentValue = null;
+        },
+
+        iconBackground(color) {
+            const value = color || '#6B7280';
+
+            // The old hex+alpha trick only works for 6-digit hex values;
+            // named colors and rgb()/hsl() go through color-mix() instead.
+            return /^#[0-9a-fA-F]{6}$/.test(value)
+                ? value + '20'
+                : `color-mix(in srgb, ${value} 12%, transparent)`;
         },
 
         getValue(item) {
