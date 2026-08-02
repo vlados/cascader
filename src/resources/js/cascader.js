@@ -39,17 +39,24 @@ export function cascader({ options, modelValue = null, selectedValue = null, ini
             });
 
             this.checkMobile();
-            window.addEventListener('resize', () => {
+            this._onWindowResize = () => {
                 this.checkMobile();
                 if (this.open && !this.isMobile) {
                     this.updateDropdownPosition();
                 }
-            });
-            window.addEventListener('scroll', () => {
+            };
+            this._onWindowScroll = () => {
                 if (this.open && !this.isMobile) {
                     this.updateDropdownPosition();
                 }
-            }, true);
+            };
+            window.addEventListener('resize', this._onWindowResize);
+            window.addEventListener('scroll', this._onWindowScroll, true);
+        },
+
+        destroy() {
+            window.removeEventListener('resize', this._onWindowResize);
+            window.removeEventListener('scroll', this._onWindowScroll, true);
         },
 
         updateDropdownPosition() {
