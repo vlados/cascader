@@ -2,68 +2,96 @@
 
 A cascading dropdown component for Laravel Livewire with Alpine.js. Inspired by Ant Design's Cascader component.
 
+On desktop it renders as a two-column dropdown with search; on mobile (< 640px) it becomes a bottom sheet with step-by-step navigation. Light and dark mode are both supported out of the box.
+
+## Requirements
+
+- PHP 8.2+ (Laravel 13 requires PHP 8.3+)
+- Laravel 11, 12 or 13
+- Livewire 3 or 4
+- Alpine.js 3
+- Tailwind CSS
+- An icon source if you use icons (FontAwesome by default — see [Icon Resolver](#icon-resolver))
+
 ## Installation
 
 ```bash
 composer require vlados/cascader
 ```
 
+### Register the Alpine component (required)
+
+The Blade component renders `x-data="cascader(...)"`, so the Alpine component must be registered before Alpine starts. Publish the script and import it in your bundle:
+
+```bash
+php artisan vendor:publish --tag=cascader-scripts
+```
+
+```js
+// resources/js/app.js — before Alpine.start()
+import { cascader } from './vendor/cascader/cascader';
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('cascader', cascader);
+});
+```
+
+The script also registers itself automatically when it is loaded on a page where Alpine is available globally (before `alpine:init` fires), so with a plain `<script>` setup no extra code is needed.
+
+### Tailwind
+
+The published views use Tailwind classes. Make sure your Tailwind content configuration covers the package views (or the published copies):
+
+```js
+content: [
+    // ...
+    './vendor/vlados/cascader/src/resources/views/**/*.blade.php',
+],
+```
+
 ## Usage
 
-### Basic Usage
+### Basic usage
 
 ```blade
 <x-cascader
     :options="$categories"
-    wire-model="category_id"
+    wire:model="category_id"
     placeholder="Select category"
-    :selected-text="$selectedCategoryText"
 />
 ```
 
-### Custom Value and Label Fields
+Use `wire:model.live` (with any modifiers, e.g. `wire:model.live.debounce.500ms`) for live updates. The deprecated `wire-model="category_id"` prop from older versions still works but will be removed in a future release — prefer the standard `wire:model` attribute.
 
-By default, the component uses `id` for values and `name` for labels. You can customize this:
+If the bound property already has a value on page load, the component derives the displayed label from the options automatically. You can override it with `selected-text`:
 
 ```blade
 <x-cascader
-    :options="$items"
-    wire-model="selected_slug"
-    value-field="slug"
-    label-field="title"
-    placeholder="Select item"
+    :options="$categories"
+    wire:model="category_id"
+    selected-text="Electronics / Phones"
 />
 ```
 
-### Options Format
+### Options format
 
-The `options` array should be structured with parent items containing a `children` array:
+The `options` array is two levels deep — parents with an optional `children` array. A parent **with** children is a navigation node and cannot be selected itself; a parent with no children is selectable directly.
 
 ```php
 $categories = [
     [
         'id' => 1,
         'name' => 'Electronics',
-        'icon' => 'laptop',      // FontAwesome icon (optional)
-        'color' => '#3B82F6',    // Color for icon background (optional)
+        'icon' => 'laptop',      // optional, see Icon Resolver
+        'color' => '#3B82F6',    // optional icon color / background tint
         'children' => [
             ['id' => 11, 'name' => 'Phones', 'icon' => 'mobile', 'color' => '#3B82F6'],
             ['id' => 12, 'name' => 'Tablets', 'icon' => 'tablet', 'color' => '#3B82F6'],
         ],
     ],
     [
-        'id' => 2,
-        'name' => 'Clothing',
-        'icon' => 'shirt',
-        'color' => '#10B981',
-        'children' => [
-            ['id' => 21, 'name' => 'Men', 'icon' => 'person', 'color' => '#10B981'],
-            ['id' => 22, 'name' => 'Women', 'icon' => 'person-dress', 'color' => '#10B981'],
-        ],
-    ],
-    [
         'id' => 3,
-        'name' => 'Other',  // No children - selectable directly
+        'name' => 'Other',  // no children — selectable directly
         'icon' => 'question',
         'color' => '#6B7280',
         'children' => [],
@@ -71,15 +99,147 @@ $categories = [
 ];
 ```
 
-### Alpine.js Component
+> **Values must be unique across the whole tree** — parents and children share one value space. If a parent and a child both had `id: 5`, selection highlighting could not tell them apart.
 
-If you need to use the Alpine.js component directly without the Blade component:
+### Custom value and label fields
+
+By default the component reads `id` for values and `name` for labels:
+
+```blade
+<x-cascader
+    :options="$items"
+    wire:model="selected_slug"
+    value-field="slug"
+    label-field="title"
+/>
+```
+
+### Clearable selection
+
+```blade
+<x-cascader :options="$categories" wire:model="category_id" :clearable="true" />
+```
+
+### Sizes
+
+Two sizes are available, matching Flux UI's select: `sm` (default) and `xs`:
+
+```blade
+<x-cascader :options="$categories" wire:model="category_id" size="xs" />
+```
+
+### Search
+
+The desktop dropdown includes a search box. Results are leaf-only: a query matching a parent lists its children as "Parent / Child" paths, and leaf parents appear directly. Escape clears the search first; pressing Escape again closes the dropdown.
+
+### Mobile customization
+
+On screens narrower than 640px the cascader opens as a bottom sheet with Cancel/Confirm buttons:
+
+```blade
+<x-cascader
+    :options="$categories"
+    wire:model="category_id"
+    cancel-text="Cancel"
+    confirm-text="Done"
+    search-placeholder="Search..."
+/>
+```
+
+### All props
+
+| Prop | Default | Description |
+| --- | --- | --- |
+| `options` | `[]` | The option tree (see format above) |
+| `wire:model` | — | Livewire binding (attribute, supports `.live` and other modifiers) |
+| `placeholder` | `Select...` | Trigger text when nothing is selected |
+| `selected-text` | derived | Initial label override for a pre-selected value |
+| `value-field` | `id` | Key used for option values |
+| `label-field` | `name` | Key used for option labels |
+| `search-placeholder` | `Search...` | Search input placeholder |
+| `clearable` | `false` | Show a clear button when a value is selected |
+| `cancel-text` | `Cancel` | Mobile sheet cancel button |
+| `confirm-text` | `Confirm` | Mobile sheet confirm button |
+| `size` | `sm` | `sm` or `xs` |
+
+## Icon Resolver
+
+Icons are resolved server-side to HTML through a configurable resolver. The default renders FontAwesome `<i>` tags. Configure a different resolver in `AppServiceProvider::boot()`.
+
+Icon names are validated (letters, numbers, dots, dashes, underscores) and colors are sanitized before rendering — invalid values are rejected or ignored rather than interpolated into markup.
+
+### FontAwesome inline tags (default)
+
+```php
+use Vlados\Cascader\IconResolver;
+
+IconResolver::useFontAwesome();          // fa-solid (default)
+IconResolver::useFontAwesome('regular'); // fa-regular
+```
+
+Options use plain icon names: `['icon' => 'laptop']` → `<i class="fa-solid fa-laptop">`. Requires FontAwesome CSS on the page.
+
+### Blade FontAwesome components
+
+For projects using [blade-fontawesome](https://github.com/owenvoke/blade-fontawesome):
+
+```php
+IconResolver::useBladeFontAwesome();      // fas (default)
+IconResolver::useBladeFontAwesome('far'); // regular
+```
+
+`['icon' => 'laptop']` → `<x-fas-laptop />`
+
+### Heroicons
+
+```php
+IconResolver::useHeroicons();          // solid
+IconResolver::useHeroicons('outline'); // outline
+```
+
+`['icon' => 'home']` → `<x-heroicon-s-home />`
+
+### Blade Icons (any set)
+
+```php
+IconResolver::useBladeIcons();
+```
+
+Pass full component names: `['icon' => 'heroicon-o-home']` → `<x-heroicon-o-home />`
+
+### Custom resolver
+
+```php
+IconResolver::using(function (string $icon, ?string $color = null, string $size = 'sm') {
+    return view('components.my-icon', [
+        'name' => $icon,
+        'color' => $color,
+        'size' => $size,
+    ])->render();
+});
+```
+
+The returned HTML is injected with `x-html`, so a custom resolver must escape any untrusted data itself.
+
+### Error handling
+
+If an icon component cannot be rendered, a descriptive `InvalidArgumentException` is thrown:
+
+```
+Cascader: Unable to render icon component '<x-fas-missing />'.
+Original icon name: 'missing'.
+Make sure the icon exists or configure a different IconResolver.
+```
+
+## Using the Alpine component directly
+
+If you want your own markup, use the Alpine component without the Blade wrapper:
 
 ```blade
 <div
     x-data="cascader({
         options: {{ Js::from($categories) }},
-        selectedValue: $wire.entangle('category_id'),
+        modelValue: $wire.entangle('category_id'),
         initialText: {{ Js::from($selectedText) }},
         valueField: 'id',
         labelField: 'name'
@@ -89,147 +249,14 @@ If you need to use the Alpine.js component directly without the Blade component:
 </div>
 ```
 
-### Clearable Selection
+`selectedValue` is accepted as a deprecated alias for `modelValue`.
 
-Add a clear button to reset the selection:
-
-```blade
-<x-cascader
-    :options="$categories"
-    wire-model="category_id"
-    placeholder="Select category"
-    :clearable="true"
-/>
-```
-
-### Mobile Customization
-
-On mobile devices (< 640px), the cascader automatically displays as a bottom sheet. You can customize the button text:
-
-```blade
-<x-cascader
-    :options="$categories"
-    wire-model="category_id"
-    placeholder="Select category"
-    cancel-text="Cancel"
-    confirm-text="Done"
-/>
-```
-
-### Icon Resolver
-
-The cascader supports flexible icon rendering through a resolver system. By default, it uses FontAwesome, but you can configure it to use Heroicons, Blade Icons, or create a custom resolver.
-
-#### Using FontAwesome with inline `<i>` tags (default)
-
-```php
-// In AppServiceProvider::boot()
-use Vlados\Cascader\IconResolver;
-
-IconResolver::useFontAwesome(); // solid style (default)
-IconResolver::useFontAwesome('regular'); // regular style
-```
-
-Options use simple icon names: `['icon' => 'laptop']` → `<i class="fa-solid fa-laptop">`
-
-#### Using Blade FontAwesome (recommended)
-
-For projects using the [blade-fontawesome](https://github.com/owenvoke/blade-fontawesome) package:
-
-```php
-IconResolver::useBladeFontAwesome(); // fas style (default)
-IconResolver::useBladeFontAwesome('far'); // regular style
-```
-
-Options use simple icon names: `['icon' => 'laptop']` → `<x-fas-laptop />`
-
-#### Using Heroicons
-
-```php
-IconResolver::useHeroicons(); // solid style
-IconResolver::useHeroicons('outline'); // outline style
-```
-
-Options use simple icon names: `['icon' => 'home']` → `<x-heroicon-s-home />`
-
-#### Using Blade Icons
-
-For any icon set that follows the Blade Icons convention:
-
-```php
-IconResolver::useBladeIcons();
-```
-
-With this resolver, pass full component names in your options:
-```php
-['icon' => 'fas-laptop'] // renders <x-fas-laptop />
-['icon' => 'heroicon-o-home'] // renders <x-heroicon-o-home />
-```
-
-#### Custom Resolver
-
-Create your own resolver for complete control:
-
-```php
-IconResolver::using(function (string $icon, ?string $color = null, string $size = 'sm') {
-    // Return HTML string for the icon
-    return view('components.my-icon', [
-        'name' => $icon,
-        'color' => $color,
-        'size' => $size,
-    ])->render();
-});
-```
-
-#### Error Handling
-
-If an icon component cannot be found, a descriptive error is thrown:
-
-```
-Cascader: Unable to render icon component '<x-fas-missing />'.
-Original icon name: 'missing'.
-Make sure the icon exists or configure a different IconResolver.
-```
-
-### Publishing Assets
-
-To publish the views for customization:
+## Publishing assets
 
 ```bash
-php artisan vendor:publish --tag=cascader-views
+php artisan vendor:publish --tag=cascader-views    # Blade views
+php artisan vendor:publish --tag=cascader-scripts  # Alpine component
 ```
-
-To publish the JavaScript:
-
-```bash
-php artisan vendor:publish --tag=cascader-scripts
-```
-
-## Features
-
-- Two-column cascading dropdown (desktop)
-- **Mobile-friendly bottom sheet** with step-by-step navigation
-- **Search/filter** through all options
-- Hover to preview children
-- Click to select
-- **Clearable** selection with optional clear button
-- **Flexible icon resolver** (FontAwesome, Heroicons, Blade Icons, or custom)
-- Selected value shows "Parent / Child" format
-- Auto-closes on selection or outside click
-- Keyboard support (Escape to close)
-- Works with Livewire's wire:model
-- Configurable value and label fields
-- Customizable search placeholder
-- Customizable Cancel/Confirm button text (mobile)
-
-## Requirements
-
-- PHP 8.2+
-- Laravel 11 or 12
-- Livewire 3
-- Alpine.js 3
-- Tailwind CSS
-- FontAwesome (for icons)
 
 ## License
 
