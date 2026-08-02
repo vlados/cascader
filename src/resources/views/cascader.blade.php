@@ -28,17 +28,23 @@
     };
 
     $wireModelAttribute = $attributes->wire('model');
-    $entangleExpression = $wireModelAttribute->value()
-        ? $wireModelAttribute->directive() === 'wire:model.live'
+    $entangleExpression = 'null';
+
+    if ($wireModelAttribute->value()) {
+        $entangleExpression = $wireModelAttribute->directive() === 'wire:model.live'
             ? "\$wire.entangle('{$wireModelAttribute->value()}').live"
-            : "\$wire.entangle('{$wireModelAttribute->value()}')"
-        : 'null';
+            : "\$wire.entangle('{$wireModelAttribute->value()}')";
+    } elseif ($wireModel) {
+        // Legacy wire-model prop (deprecated) — kept working for back-compat.
+        $entangleExpression = "\$wire.entangle('{$wireModel}')";
+    }
 @endphp
 
 <div
     x-data="cascader({
         options: {{ Js::from($resolvedOptions) }},
         modelValue: {{ $entangleExpression }},
+        initialText: {{ Js::from($selectedText) }},
         valueField: {{ Js::from($valueField) }},
         labelField: {{ Js::from($labelField) }}
     })"
