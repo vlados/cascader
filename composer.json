@@ -3,15 +3,27 @@
     "description": "A cascading dropdown component for Laravel Livewire with Alpine.js",
     "type": "library",
     "license": "MIT",
+    "keywords": [
+        "laravel",
+        "livewire",
+        "alpinejs",
+        "cascader",
+        "dropdown",
+        "select",
+        "blade",
+        "component"
+    ],
     "authors": [
         {
-            "name": "Vlado",
-            "email": "vlado@example.com"
+            "name": "Vladislav Stoitsov",
+            "email": "dev@vladko.dev"
         }
     ],
     "require": {
         "php": "^8.2",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
+        "illuminate/view": "^11.0|^12.0|^13.0",
         "livewire/livewire": "^3.0|^4.0"
     },
     "autoload": {
@@ -25,7 +37,5 @@
                 "Vlados\\Cascader\\CascaderServiceProvider"
             ]
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }
