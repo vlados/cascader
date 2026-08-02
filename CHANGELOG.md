@@ -2,7 +2,7 @@
 
 All notable changes to this package are documented here. Releases before this file existed (up to v0.4.0) have no changelog entries.
 
-## [Unreleased]
+## [0.5.0] — 2026-08-02
 
 ### Fixed
 
